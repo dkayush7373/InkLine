@@ -1,0 +1,18 @@
+{
+  "name": "inkline",
+  "version": "1.0.0",
+  "description": "Inkline feels like a well-made paper notebook. Write it down. Draw the line.",
+  "scripts": {
+    "lint": "node --check app.js",
+    "test": "node --test test/*.test.mjs"
+  },
+  "keywords": [
+    "todo",
+    "inkline",
+    "notebook",
+    "minimalist",
+    "a11y"
+  ],
+  "author": "dkayush7373 <dkayush73@gmail.com>",
+  "license": "MIT"
+}
