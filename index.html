@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inkline | A calm to-do list</title>
+  <meta name="description" content="Inkline feels like a well-made paper notebook. Write it down. Draw the line.">
+  
+  <!-- Open Graph -->
+  <meta property="og:title" content="Inkline | A calm to-do list">
+  <meta property="og:description" content="Write it down. Draw the line. A calm, editorial to-do list.">
+  <meta property="og:type" content="website">
+
+  <!-- Favicons -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+
+  <!-- Google Fonts Preconnect -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- No-Flash Theme Script -->
+  <script>
+    (function() {
+      try {
+        var raw = localStorage.getItem('inkline.prefs.v1');
+        var theme = 'system';
+        if (raw) {
+          var prefs = JSON.parse(raw);
+          if (prefs && prefs.theme) theme = prefs.theme;
+        }
+        if (theme === 'light' || theme === 'dark') {
+          document.documentElement.setAttribute('data-theme', theme);
+        } else {
+          document.documentElement.removeAttribute('data-theme');
+        }
+      } catch (e) {
+        // Fallback to system preference safely
+      }
+    })();
+  </script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Live Regions for WCAG 2.2 AA -->
+  <div id="livePolite" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <div id="liveAssertive" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+
+  <div class="page-container">
+    <!-- NoScript Fallback -->
+    <noscript>
+      <div class="noscript-banner" role="alert">
+        JavaScript is disabled in your browser. Inkline requires JavaScript to manage your tasks locally.
+      </div>
+    </noscript>
+
+    <!-- Storage Failure Warning Banner (Hidden by default) -->
+    <div id="storageAlertBanner" class="storage-banner" style="display: none;" role="alert">
+      <span>Couldn't save. Check browser settings.</span>
+      <button type="button" id="dismissStorageBannerBtn" aria-label="Dismiss storage warning">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+
+    <!-- Header Section -->
+    <header class="app-header">
+      <h1 class="wordmark">
+        <a href="index.html" class="wordmark" aria-label="Inkline Home">
+          Inkline<span class="wordmark-dot" aria-hidden="true"></span>
+        </a>
+      </h1>
+
+      <div class="header-controls">
+        <!-- Theme Selector (Radio Group) -->
+        <fieldset class="theme-picker" role="radiogroup" aria-label="Theme preference">
+          <legend class="sr-only">Choose color theme</legend>
+          
+          <div class="theme-option">
+            <input type="radio" id="themeLight" name="theme-radio" value="light">
+            <label for="themeLight" class="theme-label" title="Light theme" aria-label="Light theme">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            </label>
+          </div>
+
+          <div class="theme-option">
+            <input type="radio" id="themeDark" name="theme-radio" value="dark">
+            <label for="themeDark" class="theme-label" title="Dark theme" aria-label="Dark theme">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            </label>
+          </div>
+
+          <div class="theme-option">
+            <input type="radio" id="themeSystem" name="theme-radio" value="system">
+            <label for="themeSystem" class="theme-label" title="System theme" aria-label="System theme">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            </label>
+          </div>
+        </fieldset>
+
+        <!-- Shortcuts Help Modal Trigger -->
+        <button type="button" id="shortcutsBtn" class="icon-btn" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        </button>
+
+        <!-- Backup & Restore Modal Trigger -->
+        <button type="button" id="backupModalBtn" class="icon-btn" aria-label="Export or import data" title="Export or import data">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Date Header & Live Progress (Signature Detail 2) -->
+    <section class="date-section" aria-labelledby="todayDateHeading">
+      <h2 id="todayDateHeading" class="date-heading">Tuesday, 20 October</h2>
+      <div class="date-progress-info">
+        <span id="dateProgressText">No tasks yet</span>
+        <span id="dateProgressPercentage" class="sr-only">0 percent completed</span>
+      </div>
+      <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-labelledby="todayDateHeading" id="progressBar">
+        <div id="progressFill" class="progress-fill"></div>
+      </div>
+    </section>
+
+    <!-- Add Task Section -->
+    <section class="add-section" aria-label="Add new task">
+      <form id="addTaskForm" novalidate>
+        <div class="add-form-primary">
+          <div class="input-wrapper">
+            <label for="taskTitleInput" class="sr-only">Task title</label>
+            <input 
+              type="text" 
+              id="taskTitleInput" 
+              name="taskTitle"
+              class="text-input" 
+              placeholder="What needs doing?" 
+              autocomplete="off"
+              maxlength="500"
+              required>
+          </div>
+          <button type="submit" id="addTaskBtn" class="btn btn-primary">
+            Add
+          </button>
+        </div>
+
+        <!-- Smart Quick-Add Chip Preview -->
+        <div id="quickAddPreviewContainer"></div>
+
+        <!-- Inline Error Message -->
+        <div id="addTaskError" class="form-error" role="alert" aria-live="assertive"></div>
+
+        <!-- Collapsible More Options -->
+        <button type="button" id="toggleMoreOptionsBtn" class="add-options-toggle" aria-expanded="false" aria-controls="addMoreOptionsPanel">
+          <span>More options</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+
+        <div id="addMoreOptionsPanel" class="add-options-panel">
+          <div class="form-field">
+            <label for="taskPrioritySelect">Priority</label>
+            <select id="taskPrioritySelect" class="select-input">
+              <option value="none">None</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label for="taskDueDateInput">Due Date</label>
+            <input type="date" id="taskDueDateInput" class="date-input">
+          </div>
+
+          <div class="form-field">
+            <label for="taskCategoryInput">Category</label>
+            <input type="text" id="taskCategoryInput" class="text-input" placeholder="e.g. Work, Home" maxlength="32">
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <!-- Navigation Tabs & Filter Bar (Signature Detail 6) -->
+    <section class="tabs-and-controls" aria-label="Task views and search">
+      <nav class="tabs-wrapper" aria-label="Task lists">
+        <ul class="tabs-list" role="tablist">
+          <li role="presentation">
+            <button role="tab" id="tab-today" class="tab-btn" aria-selected="true" aria-controls="taskCanvas" data-tab="today">
+              Today <span class="tab-count" id="count-today">(0)</span>
+            </button>
+          </li>
+          <li role="presentation">
+            <button role="tab" id="tab-upcoming" class="tab-btn" aria-selected="false" aria-controls="taskCanvas" data-tab="upcoming">
+              Upcoming <span class="tab-count" id="count-upcoming">(0)</span>
+            </button>
+          </li>
+          <li role="presentation">
+            <button role="tab" id="tab-all" class="tab-btn" aria-selected="false" aria-controls="taskCanvas" data-tab="all">
+              All <span class="tab-count" id="count-all">(0)</span>
+            </button>
+          </li>
+          <li role="presentation">
+            <button role="tab" id="tab-done" class="tab-btn" aria-selected="false" aria-controls="taskCanvas" data-tab="done">
+              Done <span class="tab-count" id="count-done">(0)</span>
+            </button>
+          </li>
+        </ul>
+        <div id="tabsIndicator" class="tabs-indicator" aria-hidden="true"></div>
+      </nav>
+
+      <div class="filter-bar">
+        <div class="search-wrapper">
+          <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <label for="taskSearchInput" class="sr-only">Search tasks by title</label>
+          <input 
+            type="search" 
+            id="taskSearchInput" 
+            class="search-input" 
+            placeholder="Search tasks..." 
+            autocomplete="off">
+          <button type="button" id="clearSearchBtn" class="search-clear-btn" aria-label="Clear search input">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+
+        <div class="sort-wrapper">
+          <label for="taskSortSelect" class="sort-label">Sort by</label>
+          <select id="taskSortSelect" class="sort-select">
+            <option value="created">Date added</option>
+            <option value="due">Due date</option>
+            <option value="priority">Priority</option>
+            <option value="manual">Manual</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Ruled Paper Canvas (Signature Detail 1) -->
+    <main id="taskCanvas" class="tasks-container" role="region" aria-label="Tasks list">
+      <div class="ruled-paper-pattern" aria-hidden="true"></div>
+
+      <!-- Task items list -->
+      <ul id="taskList" class="task-list" aria-label="Task items"></ul>
+
+      <!-- Line-art Empty States (Signature Detail 7) -->
+      <div id="emptyState" class="empty-state" style="display: none;">
+        <svg id="emptyStateSvg" class="empty-state-svg" viewBox="0 0 24 24" aria-hidden="true">
+          <!-- Dynamically populated per view -->
+        </svg>
+        <p id="emptyStateText" class="empty-state-text"></p>
+      </div>
+
+      <!-- "All Clear" Moment (Signature Detail 8) -->
+      <div id="allClearMoment" class="all-clear-container" tabindex="-1">
+        <h3 class="all-clear-heading">
+          All clear.
+          <span class="all-clear-line" aria-hidden="true"></span>
+        </h3>
+        <p class="all-clear-subtext">Everything due for today is completed.</p>
+      </div>
+
+      <!-- Task Container Footer -->
+      <div id="tasksFooterBar" class="tasks-footer-bar">
+        <span id="footerCountText" class="footer-count-text">0 tasks</span>
+        <button type="button" id="openClearCompletedModalBtn" class="btn btn-tertiary btn-sm">
+          Clear completed
+        </button>
+      </div>
+    </main>
+
+    <!-- Page Footer -->
+    <footer class="app-footer">
+      <span class="tagline-text">"Write it down. Draw the line."</span>
+      <nav aria-label="Legal navigation">
+        <ul class="footer-nav">
+          <li><a href="privacy.html">Privacy</a></li>
+          <li><a href="terms.html">Terms</a></li>
+        </ul>
+      </nav>
+    </footer>
+  </div>
+
+  <!-- Undo Toast (Signature Detail 9) -->
+  <div id="undoToast" class="undo-toast" role="status" aria-atomic="true">
+    <div class="undo-toast-content">
+      <span class="undo-toast-label">Task Deleted</span>
+      <span id="undoToastTitle" class="undo-toast-title"></span>
+    </div>
+    <button type="button" id="undoToastBtn" class="undo-toast-btn">
+      Undo
+    </button>
+  </div>
+
+  <!-- Clear Completed Confirmation Dialog (Accessible Modal) -->
+  <div id="clearCompletedDialogOverlay" class="dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="clearDialogHeading" aria-describedby="clearDialogDesc">
+    <div class="dialog-card">
+      <h3 id="clearDialogHeading" class="dialog-heading">Clear completed tasks?</h3>
+      <p id="clearDialogDesc" class="dialog-body">This will permanently remove all completed tasks from your notebook. Pending tasks will not be touched.</p>
+      <div class="dialog-actions">
+        <button type="button" id="cancelClearCompletedBtn" class="btn btn-secondary">Cancel</button>
+        <button type="button" id="confirmClearCompletedBtn" class="btn btn-primary">Clear Completed</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Single Task Confirmation Dialog -->
+  <div id="deleteTaskDialogOverlay" class="dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="deleteTaskHeading" aria-describedby="deleteTaskDesc">
+    <div class="dialog-card">
+      <h3 id="deleteTaskHeading" class="dialog-heading">Delete this task?</h3>
+      <p id="deleteTaskDesc" class="dialog-body">The task will be removed. You can undo this action for 4 seconds after deletion.</p>
+      <div class="dialog-actions">
+        <button type="button" id="cancelDeleteTaskBtn" class="btn btn-secondary">Cancel</button>
+        <button type="button" id="confirmDeleteTaskBtn" class="btn btn-primary">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyboard Shortcuts Dialog -->
+  <div id="shortcutsDialogOverlay" class="dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="shortcutsHeading">
+    <div class="dialog-card">
+      <h3 id="shortcutsHeading" class="dialog-heading">Keyboard Shortcuts</h3>
+      <table class="shortcuts-table">
+        <tbody>
+          <tr>
+            <td><kbd>N</kbd></td>
+            <td>Focus new task input</td>
+          </tr>
+          <tr>
+            <td><kbd>/</kbd></td>
+            <td>Focus search input</td>
+          </tr>
+          <tr>
+            <td><kbd>?</kbd></td>
+            <td>Show keyboard shortcuts</td>
+          </tr>
+          <tr>
+            <td><kbd>Esc</kbd></td>
+            <td>Close dialogs or cancel inline edit</td>
+          </tr>
+          <tr>
+            <td><kbd>Enter</kbd></td>
+            <td>Save task or inline edit</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="dialog-actions">
+        <button type="button" id="closeShortcutsBtn" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Backup & Restore Dialog (JSON Export / Import) -->
+  <div id="backupDialogOverlay" class="dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="backupHeading">
+    <div class="dialog-card">
+      <h3 id="backupHeading" class="dialog-heading">Backup & Restore</h3>
+      <p class="dialog-body">Export your tasks as a JSON file or restore from a previously exported backup.</p>
+      <div class="form-field">
+        <button type="button" id="exportTasksBtn" class="btn btn-secondary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          Export Tasks (JSON)
+        </button>
+      </div>
+      <div class="form-field" style="margin-top: var(--space-3);">
+        <label for="importTasksFileInput">Restore Tasks from JSON</label>
+        <input type="file" id="importTasksFileInput" accept=".json,application/json" class="text-input" style="padding-top: 8px;">
+      </div>
+      <div id="importFeedback" class="form-error" role="status" style="display:none; color: var(--ink);"></div>
+      <div class="dialog-actions">
+        <button type="button" id="closeBackupBtn" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
