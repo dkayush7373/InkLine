@@ -1,0 +1,1369 @@
+/* ==========================================================================
+   Inkline Design System
+   "Write it down. Draw the line."
+   ========================================================================== */
+
+:root {
+  /* Color Palette - Light (Paper & Ink) */
+  --bg-paper: #F6F2E9;
+  --surface: #FFFFFF;
+  --ink: #17181B;
+  --text-secondary: #55575C;
+  --border: #E2DCCD;
+  --accent: #B8412B; /* Red pencil */
+  --accent-btn-text: #FFFFFF;
+  --accent-subtle: rgba(184, 65, 43, 0.08);
+  --ruled-line: rgba(23, 24, 27, 0.04);
+  --margin-line: rgba(184, 65, 43, 0.12);
+  --shadow-soft: 0 1px 3px rgba(23, 24, 27, 0.05), 0 2px 8px rgba(23, 24, 27, 0.03);
+  --toast-shadow: 0 8px 24px rgba(23, 24, 27, 0.12);
+
+  /* Typography */
+  --font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  
+  --font-size-wordmark: 28px;
+  --font-size-date: 40px;
+  --font-size-body: 15px;
+  --font-size-task: 16px;
+  --font-size-meta: 11px;
+  --font-size-input: 16px;
+
+  /* Spacing (8px Scale) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 40px;
+  --space-8: 48px;
+
+  /* Shape & Radii */
+  --radius-card: 8px;
+  --radius-btn: 6px;
+  --radius-sm: 4px;
+
+  /* Transitions */
+  --transition-fast: 160ms cubic-bezier(0.2, 0, 0, 1);
+  --transition-tab: 180ms cubic-bezier(0.2, 0, 0, 1);
+  --transition-strike: 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Dark Mode Theme */
+[data-theme="dark"] {
+  --bg-paper: #141414;
+  --surface: #1C1B19;
+  --ink: #F3F0E8;
+  --text-secondary: #A9A59B;
+  --border: #2D2B27;
+  --accent: #F08A6C;
+  --accent-btn-text: #141414;
+  --accent-subtle: rgba(240, 138, 108, 0.12);
+  --ruled-line: rgba(243, 240, 232, 0.035);
+  --margin-line: rgba(240, 138, 108, 0.15);
+  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
+  --toast-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-paper: #141414;
+    --surface: #1C1B19;
+    --ink: #F3F0E8;
+    --text-secondary: #A9A59B;
+    --border: #2D2B27;
+    --accent: #F08A6C;
+    --accent-btn-text: #141414;
+    --accent-subtle: rgba(240, 138, 108, 0.12);
+    --ruled-line: rgba(243, 240, 232, 0.035);
+    --margin-line: rgba(240, 138, 108, 0.15);
+    --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
+    --toast-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  }
+}
+
+/* ==========================================================================
+   CSS Reset & Base
+   ========================================================================== */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  color-scheme: light dark;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+  color: var(--ink);
+  background-color: var(--bg-paper);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Focus Rings (Signature Detail 10) */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Screen Reader Only Utility */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* ==========================================================================
+   Layout Containers
+   ========================================================================== */
+
+.page-container {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5) var(--space-8);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Storage Alert Banner */
+.storage-banner {
+  background-color: var(--surface);
+  border: 1px solid var(--accent);
+  border-left-width: 4px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font-size: var(--font-size-body);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.storage-banner button {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: var(--space-1);
+}
+
+/* ==========================================================================
+   Header & Controls
+   ========================================================================== */
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.wordmark {
+  font-family: var(--font-serif);
+  font-size: var(--font-size-wordmark);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.wordmark-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  display: inline-block;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Theme Toggle (Radio Group) */
+.theme-picker {
+  display: inline-flex;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-btn);
+  padding: 2px;
+  gap: 2px;
+}
+
+.theme-option {
+  position: relative;
+}
+
+.theme-option input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.theme-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.theme-label svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  fill: none;
+}
+
+.theme-option input:checked + .theme-label {
+  background-color: var(--bg-paper);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.theme-option input:focus-visible + .theme-label {
+  outline: 2px solid var(--accent);
+}
+
+/* Secondary header button */
+.icon-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-btn);
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.icon-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.icon-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  fill: none;
+}
+
+/* ==========================================================================
+   Date Header & Live Progress (Signature Detail 2)
+   ========================================================================== */
+
+.date-section {
+  margin-bottom: var(--space-6);
+}
+
+.date-heading {
+  font-family: var(--font-serif);
+  font-size: var(--font-size-date);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin-bottom: var(--space-2);
+}
+
+.date-progress-info {
+  font-size: var(--font-size-body);
+  color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.progress-track {
+  width: 100%;
+  height: 2px;
+  background-color: var(--border);
+  border-radius: 1px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: var(--accent);
+  width: 0%;
+  transition: width var(--transition-tab);
+}
+
+/* ==========================================================================
+   Add Task Section & Quick-Add
+   ========================================================================== */
+
+.add-section {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-soft);
+  margin-bottom: var(--space-6);
+  position: relative;
+}
+
+.add-form-primary {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.input-wrapper {
+  flex: 1;
+  position: relative;
+}
+
+.text-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-input);
+  color: var(--ink);
+  background-color: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-btn);
+  transition: border-color var(--transition-fast);
+}
+
+.text-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.text-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.8;
+}
+
+/* Button styles */
+.btn {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  font-weight: 500;
+  height: 44px;
+  min-width: 44px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-btn);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), opacity var(--transition-fast);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: var(--accent);
+  color: var(--accent-btn-text);
+  border: 1px solid var(--accent);
+}
+
+.btn-primary:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.btn-primary:active:not(:disabled) {
+  opacity: 0.85;
+}
+
+.btn-secondary {
+  background-color: transparent;
+  color: var(--ink);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--ink);
+  background-color: var(--bg-paper);
+}
+
+.btn-secondary:active:not(:disabled) {
+  background-color: var(--border);
+}
+
+.btn-tertiary {
+  background-color: transparent;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+  padding: 0 var(--space-2);
+}
+
+.btn-tertiary:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.btn-sm {
+  height: 36px;
+  padding: 0 var(--space-3);
+  font-size: 13px;
+}
+
+/* Quick-add chip preview */
+.quick-add-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background-color: var(--bg-paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2);
+  margin-top: var(--space-2);
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.quick-add-preview button {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0 2px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.quick-add-preview button:hover {
+  color: var(--ink);
+}
+
+/* Inline Form Error */
+.form-error {
+  color: var(--accent);
+  font-size: 13px;
+  margin-top: var(--space-2);
+  display: none;
+}
+
+.form-error.is-visible {
+  display: block;
+}
+
+/* More Options Collapsible */
+.add-options-toggle {
+  margin-top: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-1) 0;
+}
+
+.add-options-toggle:hover {
+  color: var(--ink);
+}
+
+.add-options-toggle svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  fill: none;
+  transition: transform var(--transition-fast);
+}
+
+.add-options-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.add-options-panel {
+  display: none;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--border);
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.add-options-panel.is-open {
+  display: grid;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.form-field label {
+  font-size: var(--font-size-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.select-input, .date-input {
+  height: 38px;
+  padding: 0 var(--space-2);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--ink);
+  background-color: var(--bg-paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-btn);
+}
+
+.select-input:focus, .date-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* ==========================================================================
+   Navigation Tabs & Controls (Signature Detail 6)
+   ========================================================================== */
+
+.tabs-and-controls {
+  margin-bottom: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tabs-wrapper {
+  position: relative;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs-wrapper::-webkit-scrollbar {
+  display: none;
+}
+
+.tabs-list {
+  display: flex;
+  gap: var(--space-5);
+  list-style: none;
+  position: relative;
+  padding-bottom: 2px;
+}
+
+.tab-btn {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  padding: var(--space-2) 0 var(--space-3);
+  cursor: pointer;
+  white-space: nowrap;
+  position: relative;
+  transition: color var(--transition-fast);
+}
+
+.tab-btn:hover {
+  color: var(--ink);
+}
+
+.tab-btn[aria-selected="true"] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.tab-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+
+/* Sliding Underline */
+.tabs-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background-color: var(--accent);
+  transition: transform var(--transition-tab), width var(--transition-tab);
+  pointer-events: none;
+}
+
+/* Filter & Sort Bar */
+.filter-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.search-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+}
+
+.search-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 var(--space-6) 0 32px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--ink);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-btn);
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  stroke: var(--text-secondary);
+  stroke-width: 1.5;
+  fill: none;
+  pointer-events: none;
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+}
+
+.search-clear-btn.is-visible {
+  display: flex;
+}
+
+.search-clear-btn:hover {
+  color: var(--ink);
+}
+
+.sort-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sort-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.sort-select {
+  height: 38px;
+  padding: 0 var(--space-2);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--ink);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-btn);
+}
+
+/* ==========================================================================
+   Ruled Paper Task Canvas (Signature Detail 1)
+   ========================================================================== */
+
+.tasks-container {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  min-height: 380px;
+  position: relative;
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ruled paper lines behind tasks */
+.ruled-paper-pattern {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: 
+    linear-gradient(to right, transparent 67px, var(--margin-line) 68px, transparent 69px),
+    repeating-linear-gradient(to bottom, transparent, transparent 39px, var(--ruled-line) 40px);
+  background-position: top left;
+  z-index: 0;
+}
+
+.task-list {
+  list-style: none;
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  padding: 0;
+}
+
+/* ==========================================================================
+   Task Item Component (Signature Details 3, 4, 5, 9)
+   ========================================================================== */
+
+.task-item {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background-color: transparent;
+  position: relative;
+  transition: background-color var(--transition-fast);
+}
+
+.task-item:last-child {
+  border-bottom: none;
+}
+
+.task-item:hover {
+  background-color: var(--accent-subtle);
+}
+
+.task-item.is-dragging {
+  opacity: 0.5;
+  background-color: var(--bg-paper);
+}
+
+/* Left Priority Border (Signature Detail 4) */
+.task-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0;
+}
+
+.task-item[data-priority="high"]::before {
+  width: 3px;
+  background-color: var(--accent);
+}
+
+.task-item[data-priority="medium"]::before {
+  width: 2px;
+  background-color: var(--accent);
+  opacity: 0.6;
+}
+
+.task-item[data-priority="low"]::before {
+  width: 1px;
+  background-color: var(--text-secondary);
+}
+
+/* Drag Handle */
+.drag-handle {
+  color: var(--text-secondary);
+  cursor: grab;
+  padding: var(--space-1);
+  display: none;
+  align-items: center;
+}
+
+.task-item[data-manual-sort="true"] .drag-handle {
+  display: flex;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-handle svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  fill: none;
+}
+
+/* Checkbox with SVG Checkmark (Signature Detail 3) */
+.checkbox-btn {
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--text-secondary);
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.checkbox-btn:hover {
+  border-color: var(--accent);
+}
+
+.checkbox-svg {
+  width: 14px;
+  height: 14px;
+}
+
+.checkbox-path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  transition: stroke-dashoffset var(--transition-strike);
+}
+
+.task-item.is-completed .checkbox-path {
+  stroke-dashoffset: 0;
+}
+
+.task-item.is-completed .checkbox-btn {
+  border-color: var(--accent);
+}
+
+/* Task Content */
+.task-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Title & Ink Strike-through (Signature Detail 3) */
+.task-title-wrapper {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.task-title {
+  font-size: var(--font-size-task);
+  color: var(--ink);
+  word-break: break-word;
+  line-height: 1.35;
+  position: relative;
+  transition: color var(--transition-strike);
+}
+
+/* Ink Strike-through line drawing left to right */
+.task-title::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: 55%;
+  height: 2px;
+  background-color: var(--accent);
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path var(--transition-strike);
+  pointer-events: none;
+}
+
+.task-item.is-completed .task-title {
+  color: var(--text-secondary);
+}
+
+.task-item.is-completed .task-title::after {
+  clip-path: inset(0 0 0 0);
+}
+
+/* Field-note Metadata (Signature Detail 5) */
+.task-meta {
+  font-size: var(--font-size-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  font-weight: 500;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.meta-due-today {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.meta-overdue {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Inline Edit Field */
+.inline-edit-input {
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-task);
+  color: var(--ink);
+  background-color: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 4px var(--space-2);
+}
+
+/* Task Actions */
+.task-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.action-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.action-btn:hover {
+  color: var(--ink);
+  background-color: var(--bg-paper);
+}
+
+.action-btn.delete-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent-subtle);
+}
+
+.action-btn svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  fill: none;
+}
+
+.move-btns {
+  display: none;
+}
+
+.task-item[data-manual-sort="true"] .move-btns {
+  display: flex;
+  gap: 2px;
+}
+
+/* ==========================================================================
+   Empty States & "All Clear" Moment (Signature Details 7, 8)
+   ========================================================================== */
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+  z-index: 1;
+}
+
+.empty-state-svg {
+  width: 48px;
+  height: 48px;
+  stroke: var(--text-secondary);
+  stroke-width: 1.25;
+  fill: none;
+  margin-bottom: var(--space-3);
+  opacity: 0.75;
+}
+
+.empty-state-text {
+  font-size: var(--font-size-body);
+  color: var(--text-secondary);
+  max-width: 320px;
+}
+
+/* "All Clear" Moment (Signature Detail 8) */
+.all-clear-container {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+  z-index: 1;
+}
+
+.all-clear-container.is-visible {
+  display: flex;
+}
+
+.all-clear-heading {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--ink);
+  position: relative;
+  display: inline-block;
+  margin-bottom: var(--space-2);
+}
+
+.all-clear-line {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background-color: var(--accent);
+  margin-top: 4px;
+  clip-path: inset(0 100% 0 0);
+  animation: drawUnderline 240ms cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+@keyframes drawUnderline {
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.all-clear-subtext {
+  font-size: var(--font-size-body);
+  color: var(--text-secondary);
+}
+
+/* Footer of task list */
+.tasks-footer-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  background-color: var(--surface);
+  z-index: 1;
+}
+
+/* ==========================================================================
+   Undo Toast (Signature Detail 9)
+   ========================================================================== */
+
+.undo-toast {
+  position: fixed;
+  bottom: var(--space-5);
+  right: var(--space-5);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  border-radius: var(--radius-card);
+  padding: var(--space-3) var(--space-4);
+  box-shadow: var(--toast-shadow);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: 380px;
+  z-index: 1000;
+  transform: translateY(120%);
+  opacity: 0;
+  transition: transform 200ms cubic-bezier(0.2, 0, 0, 1), opacity 200ms ease;
+  pointer-events: none;
+}
+
+.undo-toast.is-visible {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.undo-toast-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.undo-toast-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.undo-toast-title {
+  font-size: 13px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.undo-toast-btn {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.undo-toast-btn:hover {
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   Accessible Dialogs / Modals
+   ========================================================================== */
+
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(23, 24, 27, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  z-index: 2000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-fast), visibility var(--transition-fast);
+}
+
+.dialog-overlay.is-open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.dialog-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  max-width: 480px;
+  width: 100%;
+  padding: var(--space-6);
+  box-shadow: var(--toast-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.dialog-heading {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.dialog-body {
+  font-size: var(--font-size-body);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* Shortcuts Dialog Table */
+.shortcuts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.shortcuts-table td {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--ink);
+}
+
+.shortcuts-table kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  background-color: var(--bg-paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  min-width: 22px;
+  text-align: center;
+}
+
+/* ==========================================================================
+   Footer
+   ========================================================================== */
+
+.app-footer {
+  margin-top: var(--space-8);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.footer-nav {
+  display: flex;
+  gap: var(--space-4);
+  list-style: none;
+}
+
+.footer-nav a {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.footer-nav a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.tagline-text {
+  font-style: italic;
+  font-family: var(--font-serif);
+}
+
+/* ==========================================================================
+   NoScript Fallback
+   ========================================================================== */
+
+.noscript-banner {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  padding: var(--space-4);
+  margin-bottom: var(--space-6);
+  font-size: var(--font-size-body);
+  color: var(--ink);
+  border-radius: var(--radius-sm);
+}
+
+/* ==========================================================================
+   Mobile Responsive Adjustments (360px & Thumb-Friendly)
+   ========================================================================== */
+
+@media (max-width: 600px) {
+  .page-container {
+    padding: var(--space-4) var(--space-3) 90px; /* Space for sticky add bar */
+  }
+
+  .date-heading {
+    font-size: 32px;
+  }
+
+  /* Add Bar sticks to bottom on mobile */
+  .add-section {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin-bottom: 0;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+    border-bottom: none;
+    z-index: 500;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+  }
+
+  .add-options-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .undo-toast {
+    bottom: 90px;
+    right: var(--space-3);
+    left: var(--space-3);
+    max-width: none;
+  }
+
+  .filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-wrapper {
+    min-width: 100%;
+  }
+
+  .sort-wrapper {
+    justify-content: space-between;
+  }
+}
