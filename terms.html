@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms of Use | Inkline</title>
+  <meta name="description" content="Inkline terms of use. Plain language: provided as is, keep backups of important tasks.">
+  
+  <meta property="og:title" content="Terms of Use | Inkline">
+  <meta property="og:description" content="Plain language terms: provided as is, keep backups of important tasks.">
+  <meta property="og:type" content="website">
+
+  <!-- Favicons -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+
+  <!-- Google Fonts Preconnect -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    (function() {
+      try {
+        var raw = localStorage.getItem('inkline.prefs.v1');
+        if (raw) {
+          var prefs = JSON.parse(raw);
+          if (prefs && (prefs.theme === 'light' || prefs.theme === 'dark')) {
+            document.documentElement.setAttribute('data-theme', prefs.theme);
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page-container">
+    <header class="app-header">
+      <h1 class="wordmark">
+        <a href="index.html" class="wordmark" aria-label="Inkline Home">
+          Inkline<span class="wordmark-dot" aria-hidden="true"></span>
+        </a>
+      </h1>
+      <nav aria-label="Breadcrumb">
+        <a href="index.html" class="btn btn-secondary btn-sm">Back to notebook</a>
+      </nav>
+    </header>
+
+    <main class="tasks-container" style="padding: var(--space-6); min-height: auto;">
+      <article style="max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-4);">
+        <h2 style="font-family: var(--font-serif); font-size: 28px; color: var(--ink);">Terms of Use</h2>
+        
+        <p style="color: var(--text-secondary); font-size: var(--font-size-body); line-height: 1.6;">
+          Inkline is a client-side personal to-do notebook designed for simplicity and focus. By using Inkline, you accept these straightforward terms.
+        </p>
+
+        <h3 style="font-family: var(--font-serif); font-size: 18px; color: var(--ink); margin-top: var(--space-2);">Provided as is</h3>
+        <p style="color: var(--text-secondary); font-size: var(--font-size-body); line-height: 1.6;">
+          Inkline is provided "as is" and without warranty of any kind, whether express or implied. While we take pride in crafting reliable, error-free software, we cannot guarantee that the application will function uninterrupted or error-free under every browser configuration.
+        </p>
+
+        <h3 style="font-family: var(--font-serif); font-size: 18px; color: var(--ink); margin-top: var(--space-2);">Keep backups of important tasks</h3>
+        <p style="color: var(--text-secondary); font-size: var(--font-size-body); line-height: 1.6;">
+          Because tasks are stored exclusively in your local browser storage, you are responsible for maintaining backups of critical notes and tasks. You can use the built-in "Backup &amp; Restore" tool in the header to download a JSON snapshot at any time.
+        </p>
+
+        <h3 style="font-family: var(--font-serif); font-size: 18px; color: var(--ink); margin-top: var(--space-2);">Open and personal use</h3>
+        <p style="color: var(--text-secondary); font-size: var(--font-size-body); line-height: 1.6;">
+          You are free to use Inkline for personal and professional task management. Inkline is licensed under the MIT License.
+        </p>
+
+        <div style="margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border);">
+          <a href="index.html" class="btn btn-primary btn-sm">Return to Tasks</a>
+        </div>
+      </article>
+    </main>
+
+    <footer class="app-footer">
+      <span class="tagline-text">"Write it down. Draw the line."</span>
+      <nav aria-label="Legal navigation">
+        <ul class="footer-nav">
+          <li><a href="privacy.html">Privacy</a></li>
+          <li><a href="terms.html" aria-current="page">Terms</a></li>
+        </ul>
+      </nav>
+    </footer>
+  </div>
+</body>
+</html>

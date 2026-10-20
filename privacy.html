@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy | Inkline</title>
+  <meta name="description" content="Inkline privacy policy. Honest and plain: your tasks stay in your browser.">
+  
+  <meta property="og:title" content="Privacy Policy | Inkline">
+  <meta property="og:description" content="Honest and plain: your tasks stay in your browser.">
+  <meta property="og:type" content="website">
+
+  <!-- Favicons -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+
+  <!-- Google Fonts Preconnect -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    (function() {
+      try {
+        var raw = localStorage.getItem('inkline.prefs.v1');
+        if (raw) {
+          var prefs = JSON.parse(raw);
+          if (prefs && (prefs.theme === 'light' || prefs.theme === 'dark')) {
+            document.documentElement.setAttribute('data-theme', prefs.theme);
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page-container">
+    <header class="app-header">
+      <h1 class="wordmark">
+        <a href="index.html" class="wordmark" aria-label="Inkline Home">
+          Inkline<span class="wordmark-dot" aria-hidden="true"></span>
+        </a>
+      </h1>
+      <nav aria-label="Breadcrumb">
+        <a href="index.html" class="btn btn-secondary btn-sm">Back to notebook</a>
+      </nav>
+    </header>
+
+    <main class="tasks-container" style="padding: var(--space-6); min-height: auto;">
+      <article style="max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-4);">
+        <h2 style="font-family: var(--font-serif); font-size: 28px; color: var(--ink);">Privacy Policy</h2>
+        
+        <p style="color: var(--text-secondary); font-size: var(--font-size-body); line-height: 1.6;">
+          Inkline is built to be a calm, private notebook. We do not operate tracking services, surveillance scripts, or account databases.
+        </p>
+
+        <h3 style="font-family: var(--font-serif); font-size: 18px; color: var(--ink); margin-top: var(--space-2);">Your data stays in your browser</h3>
+        <p style="color: var(--text-secondary); font-size: var(--font-size-body); line-height: 1.6;">
+          All your tasks, preferences, categories, and completion timestamps are saved locally on your device via HTML5 LocalStorage. None of your task details are ever transmitted to or stored on an Inkline server.
+        </p>
+
+        <h3 style="font-family: var(--font-serif); font-size: 18px; color: var(--ink); margin-top: var(--space-2);">External network requests</h3>
+        <p style="color: var(--text-secondary); font-size: var(--font-size-body); line-height: 1.6;">
+          The only external network request made by this application is to Google Fonts to fetch the Fraunces and Inter typefaces. When loading these fonts, your browser connects to Google servers under Google's standard privacy policies.
+        </p>
+
+        <h3 style="font-family: var(--font-serif); font-size: 18px; color: var(--ink); margin-top: var(--space-2);">Clearing browser storage</h3>
+        <p style="color: var(--text-secondary); font-size: var(--font-size-body); line-height: 1.6;">
+          Because your tasks live solely in browser storage, clearing your browser cache, browsing data, or site data will permanently delete your tasks. We do not claim absolute privacy or indestructible permanence: we provide an Export feature so you can keep JSON backups on your own hard drive anytime.
+        </p>
+
+        <div style="margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border);">
+          <a href="index.html" class="btn btn-primary btn-sm">Return to Tasks</a>
+        </div>
+      </article>
+    </main>
+
+    <footer class="app-footer">
+      <span class="tagline-text">"Write it down. Draw the line."</span>
+      <nav aria-label="Legal navigation">
+        <ul class="footer-nav">
+          <li><a href="privacy.html" aria-current="page">Privacy</a></li>
+          <li><a href="terms.html">Terms</a></li>
+        </ul>
+      </nav>
+    </footer>
+  </div>
+</body>
+</html>
