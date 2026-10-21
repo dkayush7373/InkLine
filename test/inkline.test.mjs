@@ -458,3 +458,32 @@ test('reminders: no repeat after remindedAt, and resetting remindedAt on edit', 
   task.remindedAt = null;
   assert.equal(isEligible(task), true);
 });
+
+test('swipe gestures: evaluateSwipeGesture pure function threshold logic', () => {
+  function evaluateSwipeGesture(deltaX, isHistory = false) {
+    const THRESHOLD = 80;
+    if (deltaX >= THRESHOLD) {
+      return isHistory ? 'restore' : 'complete';
+    } else if (deltaX <= -THRESHOLD) {
+      return 'delete';
+    }
+    return 'spring-back';
+  }
+
+  // Active tasks
+  assert.equal(evaluateSwipeGesture(80, false), 'complete');
+  assert.equal(evaluateSwipeGesture(120, false), 'complete');
+  assert.equal(evaluateSwipeGesture(-80, false), 'delete');
+  assert.equal(evaluateSwipeGesture(-100, false), 'delete');
+  assert.equal(evaluateSwipeGesture(79, false), 'spring-back');
+  assert.equal(evaluateSwipeGesture(-79, false), 'spring-back');
+  assert.equal(evaluateSwipeGesture(0, false), 'spring-back');
+
+  // History tasks
+  assert.equal(evaluateSwipeGesture(80, true), 'restore');
+  assert.equal(evaluateSwipeGesture(150, true), 'restore');
+  assert.equal(evaluateSwipeGesture(-80, true), 'delete');
+  assert.equal(evaluateSwipeGesture(-95, true), 'delete');
+  assert.equal(evaluateSwipeGesture(60, true), 'spring-back');
+});
+

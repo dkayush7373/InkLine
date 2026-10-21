@@ -1819,6 +1819,144 @@
   }
 
   // ==========================================================================
+  // Swipe Gestures (Touch / Coarse Pointer Only - Feature 6)
+  // ==========================================================================
+  function evaluateSwipeGesture(deltaX, isHistory = false) {
+    const THRESHOLD = 80;
+    if (deltaX >= THRESHOLD) {
+      return isHistory ? 'restore' : 'complete';
+    } else if (deltaX <= -THRESHOLD) {
+      return 'delete';
+    }
+    return 'spring-back';
+  }
+
+  function setupSwipeGestures() {
+    const taskListEl = document.getElementById('taskList');
+    if (!taskListEl) return;
+
+    let startX = 0;
+    let startY = 0;
+    let currentLi = null;
+    let isHistory = false;
+    let isSwipingHorizontal = false;
+    let indicatorEl = null;
+
+    taskListEl.addEventListener('pointerdown', e => {
+      // Only when (pointer: coarse) matches
+      if (!window.matchMedia('(pointer: coarse)').matches) return;
+
+      // Ignore swipes starting within 24px of screen edges
+      if (e.clientX < 24 || e.clientX > window.innerWidth - 24) return;
+
+      // Ignore while editing, dragging or typing
+      if (state.editingTaskId || state.editingSubtaskId || state.draggedTaskId) return;
+      const targetTag = e.target.tagName.toLowerCase();
+      if (targetTag === 'input' || targetTag === 'textarea' || targetTag === 'select' || targetTag === 'button') return;
+      if (e.target.closest('button, input, select, textarea, .subtask-item')) return;
+
+      const li = e.target.closest('.task-item, .history-item');
+      if (!li) return;
+
+      startX = e.clientX;
+      startY = e.clientY;
+      currentLi = li;
+      isHistory = li.classList.contains('history-item');
+      isSwipingHorizontal = false;
+    });
+
+    taskListEl.addEventListener('pointermove', e => {
+      if (!currentLi) return;
+
+      const diffX = e.clientX - startX;
+      const diffY = e.clientY - startY;
+
+      if (!isSwipingHorizontal) {
+        if (Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > 8) {
+          // Vertical scroll - abandon swipe tracking cleanly
+          currentLi = null;
+          return;
+        }
+        if (Math.abs(diffX) > 8) {
+          isSwipingHorizontal = true;
+          try { currentLi.setPointerCapture(e.pointerId); } catch (err) {}
+
+          indicatorEl = document.createElement('div');
+          indicatorEl.className = 'swipe-label-indicator';
+          currentLi.appendChild(indicatorEl);
+        }
+      }
+
+      if (isSwipingHorizontal) {
+        const isReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (!isReduced) {
+          currentLi.style.transform = `translateX(${diffX}px)`;
+        }
+
+        if (indicatorEl) {
+          if (diffX > 0) {
+            indicatorEl.className = 'swipe-label-indicator swipe-right';
+            indicatorEl.textContent = isHistory ? 'RESTORE' : 'DONE';
+          } else {
+            indicatorEl.className = 'swipe-label-indicator swipe-left';
+            indicatorEl.textContent = 'DELETE';
+          }
+          indicatorEl.style.opacity = String(Math.min(1, Math.abs(diffX) / 60));
+        }
+      }
+    });
+
+    const finishSwipe = (e) => {
+      if (!currentLi) return;
+      const li = currentLi;
+      const ind = indicatorEl;
+      const swiped = isSwipingHorizontal;
+      const diffX = e ? (e.clientX - startX) : 0;
+      const taskId = li.getAttribute('data-id');
+
+      currentLi = null;
+      indicatorEl = null;
+      isSwipingHorizontal = false;
+
+      if (!swiped) return;
+
+      const action = evaluateSwipeGesture(diffX, isHistory);
+      const isReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (action === 'complete') {
+        li.style.transform = '';
+        if (ind) ind.remove();
+        completeTask(taskId);
+      } else if (action === 'delete') {
+        li.style.transform = '';
+        if (ind) ind.remove();
+        deleteTask(taskId);
+      } else if (action === 'restore') {
+        li.style.transform = '';
+        if (ind) ind.remove();
+        restoreTaskFromHistory(taskId);
+      } else {
+        // Spring back within 200ms
+        if (isReduced) {
+          li.style.transform = '';
+          if (ind) ind.remove();
+        } else {
+          li.style.transition = 'transform 200ms cubic-bezier(0.2, 0, 0, 1)';
+          li.style.transform = 'translateX(0)';
+          setTimeout(() => {
+            li.style.transition = '';
+            li.style.transform = '';
+            if (ind) ind.remove();
+          }, 200);
+        }
+      }
+    };
+
+    taskListEl.addEventListener('pointerup', finishSwipe);
+    taskListEl.addEventListener('pointercancel', finishSwipe);
+  }
+
+  // ==========================================================================
   // Form & Input Event Handlers
   // ==========================================================================
   function setupFormHandlers() {
@@ -2744,6 +2882,7 @@
     // 4. Setup all sub-components
     setupFormHandlers();
     setupTaskListDelegation();
+    setupSwipeGestures();
     setupFilterControls();
     setupModals();
     setupKeyboardShortcuts();

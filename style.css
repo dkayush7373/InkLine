@@ -860,6 +860,7 @@ body {
   border-bottom: 1px solid var(--border);
   background-color: transparent;
   position: relative;
+  touch-action: pan-y;
   transition: background-color var(--transition-fast);
 }
 
@@ -1167,6 +1168,8 @@ body {
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border);
   background-color: transparent;
+  position: relative;
+  touch-action: pan-y;
   transition: background-color var(--transition-fast);
 }
 
@@ -2049,4 +2052,40 @@ body {
   align-items: center;
   gap: var(--space-2);
   flex-shrink: 0;
+}
+
+/* ==========================================================================
+   Swipe Gestures Indicator (Touch Coarse Only)
+   ========================================================================== */
+.swipe-label-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+  pointer-events: none;
+  z-index: 10;
+  padding: 0 var(--space-4);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.swipe-label-indicator.swipe-right {
+  left: 0;
+  justify-content: flex-start;
+  color: var(--accent);
+  border-left: 3px solid var(--accent);
+}
+
+.swipe-label-indicator.swipe-left {
+  right: 0;
+  justify-content: flex-end;
+  color: var(--text-secondary);
+  border-right: 3px solid var(--text-secondary);
 }
