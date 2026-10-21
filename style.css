@@ -616,7 +616,7 @@ body {
   margin-top: var(--space-3);
   padding-top: var(--space-3);
   border-top: 1px dashed var(--border);
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: var(--space-3);
 }
 
@@ -638,7 +638,7 @@ body {
   font-weight: 600;
 }
 
-.select-input, .date-input {
+.select-input, .date-input, .time-input {
   height: 38px;
   padding: 0 var(--space-2);
   font-family: var(--font-sans);
@@ -649,7 +649,7 @@ body {
   border-radius: var(--radius-btn);
 }
 
-.select-input:focus, .date-input:focus {
+.select-input:focus, .date-input:focus, .time-input:focus {
   border-color: var(--accent);
   outline: none;
 }
@@ -1994,4 +1994,59 @@ body {
   font-size: 12px;
   margin-top: var(--space-2);
   line-height: 1.4;
+}
+
+/* ==========================================================================
+   Reminders & Banners Styling
+   ========================================================================== */
+.missed-reminders-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.banner-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.banner-actions button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.banner-actions button:hover {
+  color: var(--ink);
+}
+
+.reminder-toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.toast-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
 }

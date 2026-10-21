@@ -15,6 +15,18 @@ function validateTaskRecord(record) {
     dueDate = record.dueDate;
   }
 
+  let dueTime = null;
+  if (typeof record.dueTime === 'string' && /^\d{2}:\d{2}$/.test(record.dueTime)) {
+    dueTime = record.dueTime;
+  }
+
+  const validRemind = ['none', 'due', '10m', '1h', '1d'];
+  let remind = validRemind.includes(record.remind) ? record.remind : 'none';
+  if (!dueDate) {
+    remind = 'none';
+  }
+
+  const remindedAt = typeof record.remindedAt === 'number' ? record.remindedAt : null;
   const category = typeof record.category === 'string' ? record.category.slice(0, 32).trim() : '';
   const createdAt = typeof record.createdAt === 'number' ? record.createdAt : Date.now();
   const completedAt = typeof record.completedAt === 'number' ? record.completedAt : null;
@@ -38,6 +50,9 @@ function validateTaskRecord(record) {
     title: record.title.trim().slice(0, 500),
     priority,
     dueDate,
+    dueTime,
+    remind,
+    remindedAt,
     category,
     createdAt,
     completedAt,
@@ -363,4 +378,83 @@ test('backup & restore: JSON backup import validation skips bad records and keep
   assert.equal(skipped, 3);
   assert.equal(valid[0].id, 't1');
   assert.equal(valid[1].id, 't3');
+});
+
+test('reminders: trigger math handles due, 10m, 1h, 1d, and 9:00 AM local default', () => {
+  function getReminderTriggerTimestamp(task) {
+    if (!task.dueDate || !task.remind || task.remind === 'none') return null;
+    const timeStr = task.dueTime || '09:00';
+    const parts = task.dueDate.split('-');
+    const timeParts = timeStr.split(':');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const hours = parseInt(timeParts[0], 10);
+    const minutes = parseInt(timeParts[1], 10);
+
+    const dueTimestamp = new Date(year, month, day, hours, minutes, 0, 0).getTime();
+    let offsetMs = 0;
+    if (task.remind === 'due') offsetMs = 0;
+    else if (task.remind === '10m') offsetMs = 10 * 60 * 1000;
+    else if (task.remind === '1h') offsetMs = 60 * 60 * 1000;
+    else if (task.remind === '1d') offsetMs = 24 * 60 * 60 * 1000;
+
+    return dueTimestamp - offsetMs;
+  }
+
+  // 1. Due at exact time
+  const t1 = { dueDate: '2026-10-25', dueTime: '17:00', remind: 'due' };
+  const expected1 = new Date(2026, 9, 25, 17, 0, 0, 0).getTime();
+  assert.equal(getReminderTriggerTimestamp(t1), expected1);
+
+  // 2. 10 minutes before
+  const t2 = { dueDate: '2026-10-25', dueTime: '17:00', remind: '10m' };
+  assert.equal(getReminderTriggerTimestamp(t2), expected1 - 10 * 60 * 1000);
+
+  // 3. 1 hour before
+  const t3 = { dueDate: '2026-10-25', dueTime: '17:00', remind: '1h' };
+  assert.equal(getReminderTriggerTimestamp(t3), expected1 - 60 * 60 * 1000);
+
+  // 4. 1 day before
+  const t4 = { dueDate: '2026-10-25', dueTime: '17:00', remind: '1d' };
+  assert.equal(getReminderTriggerTimestamp(t4), expected1 - 24 * 60 * 60 * 1000);
+
+  // 5. Default 9:00 AM local when no time is set
+  const t5 = { dueDate: '2026-10-25', dueTime: null, remind: 'due' };
+  const expectedDefault = new Date(2026, 9, 25, 9, 0, 0, 0).getTime();
+  assert.equal(getReminderTriggerTimestamp(t5), expectedDefault);
+
+  // 6. No due date disables reminder
+  const t6 = validateTaskRecord({ id: 'no_due', title: 'Task', dueDate: null, remind: 'due' });
+  assert.equal(t6.remind, 'none');
+  assert.equal(getReminderTriggerTimestamp(t6), null);
+});
+
+test('reminders: no repeat after remindedAt, and resetting remindedAt on edit', () => {
+  const task = {
+    id: 't_remind',
+    title: 'Dentist appointment',
+    dueDate: '2026-10-25',
+    dueTime: '10:00',
+    remind: 'due',
+    remindedAt: 1729800000000,
+    completedAt: null
+  };
+
+  // Simulating checkReminders eligibility:
+  const isEligible = (t) => !t.completedAt && t.remind && t.remind !== 'none' && !t.remindedAt;
+  assert.equal(isEligible(task), false); // Already reminded
+
+  // Completing task cancels reminder eligibility
+  task.remindedAt = null;
+  task.completedAt = Date.now();
+  assert.equal(isEligible(task), false);
+
+  // Reopening and editing resets remindedAt
+  task.completedAt = null;
+  task.remindedAt = Date.now();
+  // User edits due time
+  task.dueTime = '11:00';
+  task.remindedAt = null;
+  assert.equal(isEligible(task), true);
 });

@@ -70,6 +70,17 @@
       </button>
     </div>
 
+    <!-- Missed Reminders Banner (Hidden by default) -->
+    <div id="missedRemindersBanner" class="storage-banner missed-reminders-banner" style="display: none;" role="alert">
+      <span id="missedRemindersText"></span>
+      <div class="banner-actions">
+        <button type="button" id="viewMissedRemindersBtn" class="btn btn-secondary btn-sm">View</button>
+        <button type="button" id="dismissMissedRemindersBtn" aria-label="Dismiss missed reminders banner">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+    </div>
+
     <!-- Header Section -->
     <header class="app-header">
       <h1 class="wordmark">
@@ -174,6 +185,22 @@
           <div class="form-field">
             <label for="taskDueDateInput">Due Date</label>
             <input type="date" id="taskDueDateInput" class="date-input">
+          </div>
+
+          <div class="form-field">
+            <label for="taskDueTimeInput">Due Time</label>
+            <input type="time" id="taskDueTimeInput" class="time-input select-input">
+          </div>
+
+          <div class="form-field">
+            <label for="taskReminderSelect">Reminder</label>
+            <select id="taskReminderSelect" class="select-input">
+              <option value="none">None</option>
+              <option value="due">At due time</option>
+              <option value="10m">10 minutes before</option>
+              <option value="1h">1 hour before</option>
+              <option value="1d">1 day before</option>
+            </select>
           </div>
 
           <div class="form-field">
@@ -298,6 +325,18 @@
     <button type="button" id="undoToastBtn" class="undo-toast-btn">
       Undo
     </button>
+  </div>
+
+  <!-- In-app Reminder Toast -->
+  <div id="reminderToast" class="undo-toast reminder-toast" role="alert" aria-live="assertive" style="display: none;">
+    <div class="undo-toast-content">
+      <span class="undo-toast-label">Reminder</span>
+      <span id="reminderToastText" class="undo-toast-title"></span>
+    </div>
+    <div class="toast-actions">
+      <button type="button" id="reminderToastViewBtn" class="btn btn-secondary btn-sm">View</button>
+      <button type="button" id="reminderToastDismissBtn" class="undo-toast-btn">Dismiss</button>
+    </div>
   </div>
 
   <!-- Clear History Confirmation Dialog (Accessible Modal) -->
@@ -437,6 +476,18 @@
       <div class="dialog-actions">
         <button type="button" id="cancelConfirmImportBtn" class="btn btn-secondary">Cancel</button>
         <button type="button" id="confirmReplaceImportBtn" class="btn btn-primary">Replace Tasks</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Permission Explanation Dialog -->
+  <div id="permissionPromptDialogOverlay" class="dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="permPromptHeading" aria-describedby="permPromptDesc">
+    <div class="dialog-card">
+      <h3 id="permPromptHeading" class="dialog-heading">Enable due reminders?</h3>
+      <p id="permPromptDesc" class="dialog-body">Inkline can notify you when tasks are due while this tab is open in your browser.</p>
+      <div class="dialog-actions">
+        <button type="button" id="skipPermissionBtn" class="btn btn-secondary">Not Now</button>
+        <button type="button" id="allowPermissionBtn" class="btn btn-primary">Enable Notifications</button>
       </div>
     </div>
   </div>

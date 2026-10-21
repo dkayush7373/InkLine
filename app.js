@@ -224,6 +224,19 @@
       dueDate = record.dueDate;
     }
 
+    let dueTime = null;
+    if (typeof record.dueTime === 'string' && /^\d{2}:\d{2}$/.test(record.dueTime)) {
+      dueTime = record.dueTime;
+    }
+
+    const validRemind = ['none', 'due', '10m', '1h', '1d'];
+    let remind = validRemind.includes(record.remind) ? record.remind : 'none';
+    if (!dueDate) {
+      remind = 'none';
+    }
+
+    const remindedAt = typeof record.remindedAt === 'number' ? record.remindedAt : null;
+
     const category = typeof record.category === 'string' ? record.category.slice(0, 32).trim() : '';
     const createdAt = typeof record.createdAt === 'number' ? record.createdAt : Date.now();
     const completedAt = typeof record.completedAt === 'number' ? record.completedAt : null;
@@ -247,6 +260,9 @@
       title: record.title.trim().slice(0, 500),
       priority: priority,
       dueDate: dueDate,
+      dueTime: dueTime,
+      remind: remind,
+      remindedAt: remindedAt,
       category: category,
       createdAt: createdAt,
       completedAt: completedAt,
@@ -467,7 +483,7 @@
   // ==========================================================================
   // Task Operations (Add, Complete, Reopen, Edit, Delete, Undo)
   // ==========================================================================
-  function addTask(title, priority = 'none', dueDate = null, category = '') {
+  function addTask(title, priority = 'none', dueDate = null, category = '', dueTime = null, remind = 'none') {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       return { success: false, error: 'Please enter a task title.' };
@@ -479,21 +495,43 @@
 
     const maxOrder = state.tasks.reduce((max, t) => Math.max(max, t.order || 0), -1);
 
+    const safeDueDate = dueDate && /^\d{4}-\d{2}-\d{2}$/.test(dueDate) ? dueDate : null;
+    const safeDueTime = dueTime && /^\d{2}:\d{2}$/.test(dueTime) ? dueTime : null;
+    const validRemind = ['none', 'due', '10m', '1h', '1d'];
+    const safeRemind = safeDueDate && validRemind.includes(remind) ? remind : 'none';
+
     const newTask = {
       id: generateId(),
       title: trimmedTitle.slice(0, 500),
       priority: priority || 'none',
-      dueDate: dueDate || null,
+      dueDate: safeDueDate,
+      dueTime: safeDueTime,
+      remind: safeRemind,
+      remindedAt: null,
       category: category ? category.slice(0, 32).trim() : '',
       createdAt: Date.now(),
       completedAt: null,
-      order: maxOrder + 1
+      order: maxOrder + 1,
+      subtasks: []
     };
 
     state.tasks.push(newTask);
     saveToStorage();
     announcePolite('Task added');
     render();
+
+    // Ask for notification permission only when user saves their first task that has a reminder
+    if (safeRemind !== 'none') {
+      if ('Notification' in window && Notification.permission === 'default' && !state.prefs.permissionPrompted) {
+        state.prefs.permissionPrompted = true;
+        savePrefsToStorage();
+        const permDialog = document.getElementById('permissionPromptDialogOverlay');
+        if (permDialog) {
+          setTimeout(() => openModal(permDialog), 300);
+        }
+      }
+    }
+
     return { success: true, task: newTask };
   }
 
@@ -627,7 +665,7 @@
     render();
   }
 
-  function saveTaskEdit(taskId, newTitle) {
+  function saveTaskEdit(taskId, newTitle, newDueDate, newDueTime, newRemind) {
     const trimmed = newTitle.trim();
     if (!trimmed) {
       return { success: false, error: 'Task title cannot be empty.' };
@@ -641,6 +679,25 @@
     if (!task) return { success: false, error: 'Task not found.' };
 
     task.title = trimmed.slice(0, 500);
+
+    let resetReminder = false;
+    if (newDueDate !== undefined && newDueDate !== task.dueDate) {
+      task.dueDate = newDueDate;
+      resetReminder = true;
+    }
+    if (newDueTime !== undefined && newDueTime !== task.dueTime) {
+      task.dueTime = newDueTime;
+      resetReminder = true;
+    }
+    if (newRemind !== undefined && newRemind !== task.remind) {
+      task.remind = newRemind;
+      resetReminder = true;
+    }
+
+    if (resetReminder) {
+      task.remindedAt = null;
+    }
+
     state.editingTaskId = null;
     saveToStorage();
     announcePolite('Task updated');
@@ -1267,15 +1324,16 @@
       if (task.dueDate) {
         const dateSpan = document.createElement('span');
         const today = state.todayString;
+        const timePart = task.dueTime ? ` ${formatTime12(task.dueTime)}` : '';
 
         if (!task.completedAt && isOverdue(task.dueDate, today)) {
           dateSpan.className = 'meta-overdue';
-          dateSpan.textContent = `OVERDUE (${formatDisplayDate(task.dueDate).toUpperCase()})`;
+          dateSpan.textContent = `OVERDUE (${formatDisplayDate(task.dueDate).toUpperCase()}${timePart})`;
         } else if (!task.completedAt && isDueToday(task.dueDate, today)) {
           dateSpan.className = 'meta-due-today';
-          dateSpan.textContent = 'DUE TODAY';
+          dateSpan.textContent = `DUE TODAY${timePart}`;
         } else {
-          dateSpan.textContent = `DUE ${formatDisplayDate(task.dueDate).toUpperCase()}`;
+          dateSpan.textContent = `DUE ${formatDisplayDate(task.dueDate).toUpperCase()}${timePart}`;
         }
         metaParts.push(dateSpan);
       }
@@ -1839,8 +1897,13 @@
         }
 
         const category = categoryInput ? categoryInput.value : '';
+        const dueTimeInput = document.getElementById('taskDueTimeInput');
+        const reminderSelect = document.getElementById('taskReminderSelect');
 
-        const res = addTask(rawTitle, priority, dueDate, category);
+        const dueTime = dueTimeInput && dueTimeInput.value ? dueTimeInput.value : null;
+        const remind = reminderSelect ? reminderSelect.value : 'none';
+
+        const res = addTask(rawTitle, priority, dueDate, category, dueTime, remind);
         if (!res.success) {
           if (errorEl) {
             errorEl.textContent = res.error;
@@ -1854,6 +1917,8 @@
             errorEl.classList.remove('is-visible');
           }
           if (dueDateInput) dueDateInput.value = '';
+          if (dueTimeInput) dueTimeInput.value = '';
+          if (reminderSelect) reminderSelect.value = 'none';
           if (categoryInput) categoryInput.value = '';
           if (prioritySelect) prioritySelect.value = 'none';
           state.quickAddDueDate = null;
@@ -2199,6 +2264,28 @@
       });
     }
 
+    // 5. Notification Permission Explanation Dialog
+    const permDialog = document.getElementById('permissionPromptDialogOverlay');
+    const allowPermBtn = document.getElementById('allowPermissionBtn');
+    const skipPermBtn = document.getElementById('skipPermissionBtn');
+
+    if (allowPermBtn) {
+      allowPermBtn.addEventListener('click', () => {
+        closeModal(permDialog);
+        if ('Notification' in window) {
+          Notification.requestPermission().then(() => {
+            updateNotificationPermissionStatus();
+          });
+        }
+      });
+    }
+
+    if (skipPermBtn) {
+      skipPermBtn.addEventListener('click', () => {
+        closeModal(permDialog);
+      });
+    }
+
     // Accessible Focus Trap and Escape Handler
     document.addEventListener('keydown', e => {
       const openDialog = document.querySelector('.dialog-overlay.is-open');
@@ -2338,8 +2425,203 @@
           state.todayString = currentToday;
           render();
         }
+        checkReminders();
       }
     });
+  }
+
+  // ==========================================================================
+  // Reminders Engine (30-second checking, trigger math, toasts & missed banner)
+  // ==========================================================================
+  function formatTime12(timeStr) {
+    if (!timeStr) return '';
+    const parts = timeStr.split(':');
+    let h = parseInt(parts[0], 10);
+    const m = parts[1] || '00';
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${h}:${m} ${ampm}`;
+  }
+
+  function getReminderTriggerTimestamp(task) {
+    if (!task.dueDate || !task.remind || task.remind === 'none') return null;
+    const timeStr = task.dueTime || '09:00';
+    const parts = task.dueDate.split('-');
+    const timeParts = timeStr.split(':');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const hours = parseInt(timeParts[0], 10);
+    const minutes = parseInt(timeParts[1], 10);
+
+    const dueTimestamp = new Date(year, month, day, hours, minutes, 0, 0).getTime();
+    let offsetMs = 0;
+    if (task.remind === 'due') offsetMs = 0;
+    else if (task.remind === '10m') offsetMs = 10 * 60 * 1000;
+    else if (task.remind === '1h') offsetMs = 60 * 60 * 1000;
+    else if (task.remind === '1d') offsetMs = 24 * 60 * 60 * 1000;
+
+    return dueTimestamp - offsetMs;
+  }
+
+  let activeReminderToastTimer = null;
+
+  function showReminderToast(task, text) {
+    const toast = document.getElementById('reminderToast');
+    const label = document.getElementById('reminderToastText');
+    const viewBtn = document.getElementById('reminderToastViewBtn');
+    const dismissBtn = document.getElementById('reminderToastDismissBtn');
+    if (!toast || !label) return;
+
+    label.textContent = text;
+    toast.style.display = 'flex';
+    toast.classList.add('is-visible');
+
+    if (viewBtn) {
+      viewBtn.onclick = () => {
+        toast.classList.remove('is-visible');
+        setTimeout(() => { toast.style.display = 'none'; }, 200);
+
+        const today = state.todayString;
+        if (task.dueDate && (isDueToday(task.dueDate, today) || isOverdue(task.dueDate, today))) {
+          switchTab('today');
+        } else if (task.dueDate && task.dueDate > today) {
+          switchTab('upcoming');
+        } else {
+          switchTab('all');
+        }
+
+        setTimeout(() => {
+          const el = document.querySelector(`.task-item[data-id="${task.id}"]`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.focus();
+          }
+        }, 150);
+      };
+    }
+
+    if (dismissBtn) {
+      dismissBtn.onclick = () => {
+        toast.classList.remove('is-visible');
+        setTimeout(() => { toast.style.display = 'none'; }, 200);
+      };
+    }
+
+    if (activeReminderToastTimer) clearTimeout(activeReminderToastTimer);
+    activeReminderToastTimer = setTimeout(() => {
+      toast.classList.remove('is-visible');
+      setTimeout(() => { toast.style.display = 'none'; }, 200);
+    }, 10000);
+  }
+
+  function checkReminders() {
+    if (state.prefs.remindersEnabled === false) return;
+    const now = Date.now();
+
+    const storedMap = new Map();
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_TASKS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(t => {
+            if (t && t.id) storedMap.set(t.id, t.remindedAt);
+          });
+        }
+      }
+    } catch (e) {}
+
+    let updated = false;
+
+    state.tasks.forEach(task => {
+      if (task.completedAt) return;
+      if (!task.remind || task.remind === 'none') return;
+      if (task.remindedAt) return;
+
+      if (storedMap.has(task.id) && storedMap.get(task.id)) {
+        task.remindedAt = storedMap.get(task.id);
+        return;
+      }
+
+      const trigger = getReminderTriggerTimestamp(task);
+      if (trigger && now >= trigger) {
+        task.remindedAt = now;
+        updated = true;
+
+        const timeLabel = task.dueTime ? formatTime12(task.dueTime) : '9:00 AM';
+        const reminderText = `Reminder: ${task.title} is due at ${timeLabel}`;
+
+        if ('Notification' in window && Notification.permission === 'granted') {
+          try {
+            new Notification('Inkline', {
+              body: reminderText,
+              icon: 'favicon.png'
+            });
+          } catch (e) {}
+        }
+
+        showReminderToast(task, reminderText);
+      }
+    });
+
+    if (updated) {
+      saveToStorage();
+    }
+  }
+
+  function checkMissedRemindersOnLoad() {
+    const now = Date.now();
+    let missedCount = 0;
+
+    state.tasks.forEach(task => {
+      if (task.completedAt) return;
+      if (!task.remind || task.remind === 'none') return;
+      if (task.remindedAt) return;
+
+      const trigger = getReminderTriggerTimestamp(task);
+      if (trigger && trigger < now) {
+        task.remindedAt = now;
+        missedCount++;
+      }
+    });
+
+    if (missedCount > 0) {
+      saveToStorage();
+      const banner = document.getElementById('missedRemindersBanner');
+      const text = document.getElementById('missedRemindersText');
+      const viewBtn = document.getElementById('viewMissedRemindersBtn');
+      const dismissBtn = document.getElementById('dismissMissedRemindersBtn');
+
+      if (banner && text) {
+        text.textContent = `${missedCount} reminder${missedCount === 1 ? '' : 's'} passed while Inkline was closed`;
+        banner.style.display = 'flex';
+
+        if (viewBtn) {
+          viewBtn.onclick = () => {
+            switchTab('today');
+            banner.style.display = 'none';
+          };
+        }
+        if (dismissBtn) {
+          dismissBtn.onclick = () => {
+            banner.style.display = 'none';
+          };
+        }
+      }
+    }
+  }
+
+  function switchTab(tab) {
+    if (tab && tab !== state.filter) {
+      state.filter = tab;
+      const btn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
+      if (btn) {
+        btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      }
+      render();
+    }
   }
 
   // ==========================================================================
@@ -2472,6 +2754,11 @@
     // 5. Load data & initial render
     state.tasks = loadFromStorage();
     render();
+
+    // 6. Check missed reminders and schedule recurring checks
+    checkMissedRemindersOnLoad();
+    checkReminders();
+    setInterval(checkReminders, 30000);
 
     // Window resize listener to keep sliding tab indicator aligned
     window.addEventListener('resize', updateTabsIndicator);
