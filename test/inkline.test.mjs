@@ -20,6 +20,19 @@ function validateTaskRecord(record) {
   const completedAt = typeof record.completedAt === 'number' ? record.completedAt : null;
   const order = typeof record.order === 'number' ? record.order : 0;
 
+  let subtasks = [];
+  if (Array.isArray(record.subtasks)) {
+    record.subtasks.slice(0, 20).forEach(st => {
+      if (st && typeof st === 'object' && typeof st.id === 'string' && typeof st.title === 'string' && st.title.trim()) {
+        subtasks.push({
+          id: st.id,
+          title: st.title.trim().slice(0, 500),
+          done: Boolean(st.done)
+        });
+      }
+    });
+  }
+
   return {
     id: record.id,
     title: record.title.trim().slice(0, 500),
@@ -28,7 +41,8 @@ function validateTaskRecord(record) {
     category,
     createdAt,
     completedAt,
-    order
+    order,
+    subtasks
   };
 }
 
@@ -223,4 +237,92 @@ test('priority section grouping correctly partitions tasks and ignores empty sec
   assert.equal(sections[0].tasks.length, 2);
   assert.equal(sections[1].key, 'low');
   assert.equal(sections[1].tasks.length, 1);
+});
+
+test('subtasks: validation safely caps at 20 and preserves backward compatibility', () => {
+  // Old task without subtasks
+  const oldTask = validateTaskRecord({ id: 'old_1', title: 'Old task' });
+  assert.ok(oldTask);
+  assert.deepEqual(oldTask.subtasks, []);
+
+  // Task with >20 subtasks and malformed entries
+  const manySubtasks = Array.from({ length: 25 }, (_, i) => ({
+    id: `sub_${i}`,
+    title: `Subtask ${i}`,
+    done: i % 2 === 0
+  }));
+  manySubtasks.push({ id: '', title: '' }); // malformed
+
+  const task = validateTaskRecord({
+    id: 'task_sub',
+    title: 'Task with many subtasks',
+    subtasks: manySubtasks
+  });
+
+  assert.equal(task.subtasks.length, 20);
+  assert.equal(task.subtasks[0].id, 'sub_0');
+  assert.equal(task.subtasks[0].done, true);
+  assert.equal(task.subtasks[1].done, false);
+});
+
+test('subtasks: completing parent completes open subtasks and undo restores exact previous states', () => {
+  const task = {
+    id: 'p_1',
+    title: 'Parent Task',
+    completedAt: null,
+    subtasks: [
+      { id: 's_1', title: 'Sub 1', done: true },
+      { id: 's_2', title: 'Sub 2', done: false }
+    ]
+  };
+
+  // Complete parent logic
+  const previousSubtasks = task.subtasks.map(s => ({ id: s.id, done: s.done }));
+  task.completedAt = Date.now();
+  task.subtasks.forEach(s => { s.done = true; });
+
+  assert.equal(task.subtasks[0].done, true);
+  assert.equal(task.subtasks[1].done, true);
+
+  // Undo complete parent logic
+  task.completedAt = null;
+  const prevMap = new Map(previousSubtasks.map(s => [s.id, s.done]));
+  task.subtasks.forEach(s => {
+    if (prevMap.has(s.id)) s.done = prevMap.get(s.id);
+  });
+
+  assert.equal(task.subtasks[0].done, true);
+  assert.equal(task.subtasks[1].done, false);
+});
+
+test('subtasks: search query matches subtask titles', () => {
+  const tasks = [
+    {
+      id: '1',
+      title: 'Plan vacation',
+      completedAt: null,
+      subtasks: [
+        { id: 's1', title: 'Book flights', done: false },
+        { id: 's2', title: 'Pack bags', done: false }
+      ]
+    },
+    {
+      id: '2',
+      title: 'Fix sink',
+      completedAt: null,
+      subtasks: []
+    }
+  ];
+
+  const query = 'flights';
+  const filtered = tasks.filter(task => {
+    if (task.title.toLowerCase().includes(query)) return true;
+    if (task.subtasks && Array.isArray(task.subtasks)) {
+      return task.subtasks.some(st => st.title && st.title.toLowerCase().includes(query));
+    }
+    return false;
+  });
+
+  assert.equal(filtered.length, 1);
+  assert.equal(filtered[0].id, '1');
 });

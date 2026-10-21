@@ -1148,6 +1148,212 @@ body {
   align-items: center;
 }
 
+/* Subtasks Component (Feature 3) */
+.subtask-progress-bar {
+  width: 100%;
+  max-width: 240px;
+  height: 2px;
+  background-color: var(--border);
+  border-radius: 1px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.subtask-progress-fill {
+  height: 100%;
+  background-color: var(--accent);
+  transition: width var(--transition-fast);
+}
+
+.subtasks-wrapper {
+  margin-top: var(--space-2);
+}
+
+.subtasks-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  padding: 4px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast);
+}
+
+.subtasks-toggle-btn:hover {
+  color: var(--ink);
+}
+
+.subtasks-toggle-btn svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  transition: transform var(--transition-fast);
+}
+
+.subtasks-toggle-btn[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.subtasks-checklist {
+  display: none;
+  list-style: none;
+  margin-top: var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--border);
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.subtasks-checklist.is-open {
+  display: flex;
+}
+
+.subtask-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+}
+
+.subtask-checkbox-btn {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--text-secondary);
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  transition: border-color var(--transition-fast);
+}
+
+.subtask-checkbox-btn:hover {
+  border-color: var(--accent);
+}
+
+.subtask-checkbox-svg {
+  width: 12px;
+  height: 12px;
+}
+
+.subtask-checkbox-path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  transition: stroke-dashoffset var(--transition-strike);
+}
+
+.subtask-item.is-done .subtask-checkbox-path {
+  stroke-dashoffset: 0;
+}
+
+.subtask-item.is-done .subtask-checkbox-btn {
+  border-color: var(--accent);
+}
+
+.subtask-title {
+  font-size: 13px;
+  color: var(--ink);
+  flex: 1;
+  word-break: break-word;
+}
+
+.subtask-item.is-done .subtask-title {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+
+.subtask-edit-input {
+  flex: 1;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--ink);
+  background-color: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2);
+}
+
+.subtask-delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+}
+
+.subtask-delete-btn:hover {
+  color: var(--accent);
+}
+
+.subtask-delete-btn svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+}
+
+.subtask-add-form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 4px;
+}
+
+.subtask-add-input {
+  height: 32px;
+  flex: 1;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--ink);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+}
+
+.subtask-add-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.mark-parent-done-btn {
+  background: none;
+  border: 1px dashed var(--accent);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px var(--space-2);
+  border-radius: var(--radius-sm);
+  margin-top: 4px;
+  align-self: flex-start;
+  transition: background-color var(--transition-fast);
+}
+
+.mark-parent-done-btn:hover {
+  background-color: var(--accent-subtle);
+}
+
 .meta-due-today {
   color: var(--accent);
   font-weight: 600;
