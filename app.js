@@ -37,7 +37,8 @@
     searchQuery: '',
     sortBy: 'created', // 'created' | 'due' | 'priority' | 'manual'
     prefs: {
-      theme: 'system' // 'light' | 'dark' | 'system'
+      theme: 'system', // 'light' | 'dark' | 'system'
+      collapsedSections: {}
     },
     quickAddDueDate: null,
     editingTaskId: null,
@@ -255,6 +256,9 @@
         const parsedPrefs = JSON.parse(prefsRaw);
         if (parsedPrefs && ['light', 'dark', 'system'].includes(parsedPrefs.theme)) {
           state.prefs.theme = parsedPrefs.theme;
+        }
+        if (parsedPrefs && typeof parsedPrefs.collapsedSections === 'object' && parsedPrefs.collapsedSections !== null) {
+          state.prefs.collapsedSections = parsedPrefs.collapsedSections;
         }
       }
     } catch (e) {
@@ -875,9 +879,71 @@
     } else {
       if (emptyStateEl) emptyStateEl.style.display = 'none';
 
-      visibleTasks.forEach(task => {
-        const itemEl = createTaskItemElement(task, isManualSort);
-        taskListEl.appendChild(itemEl);
+      // Group active tasks into High, Medium, Low, No priority (Feature 2)
+      const PRIORITY_SECTIONS = [
+        { key: 'high', label: 'HIGH' },
+        { key: 'medium', label: 'MEDIUM' },
+        { key: 'low', label: 'LOW' },
+        { key: 'none', label: 'NO PRIORITY' }
+      ];
+
+      const sections = PRIORITY_SECTIONS.map(p => ({
+        key: p.key,
+        label: p.label,
+        tasks: visibleTasks.filter(t => (t.priority || 'none') === p.key)
+      })).filter(sec => sec.tasks.length > 0); // Hide empty sections
+
+      sections.forEach(sec => {
+        const secLi = document.createElement('li');
+        secLi.className = 'priority-section';
+        secLi.setAttribute('data-priority-section', sec.key);
+
+        const isCollapsed = Boolean(state.prefs.collapsedSections && state.prefs.collapsedSections[sec.key]);
+        if (isCollapsed) {
+          secLi.classList.add('is-collapsed');
+        }
+
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'priority-section-header';
+
+        const titleH3 = document.createElement('h3');
+        titleH3.className = 'priority-section-title';
+        titleH3.textContent = `${sec.label} (${sec.tasks.length})`;
+        headerDiv.appendChild(titleH3);
+
+        const ruleDiv = document.createElement('div');
+        ruleDiv.className = 'priority-section-rule';
+        ruleDiv.setAttribute('aria-hidden', 'true');
+        headerDiv.appendChild(ruleDiv);
+
+        const collapseBtn = document.createElement('button');
+        collapseBtn.type = 'button';
+        collapseBtn.className = 'section-collapse-btn';
+        collapseBtn.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+        collapseBtn.setAttribute('aria-controls', `section-tasks-${sec.key}`);
+        collapseBtn.setAttribute('aria-label', `${isCollapsed ? 'Expand' : 'Collapse'} ${sec.label} section`);
+        collapseBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
+        collapseBtn.addEventListener('click', () => {
+          state.prefs.collapsedSections = state.prefs.collapsedSections || {};
+          state.prefs.collapsedSections[sec.key] = !isCollapsed;
+          savePrefsToStorage();
+          render();
+        });
+        headerDiv.appendChild(collapseBtn);
+        secLi.appendChild(headerDiv);
+
+        const secUl = document.createElement('ul');
+        secUl.id = `section-tasks-${sec.key}`;
+        secUl.className = 'task-list section-task-list';
+        secUl.setAttribute('aria-label', `${sec.label} priority tasks`);
+
+        sec.tasks.forEach(task => {
+          const itemEl = createTaskItemElement(task, isManualSort);
+          secUl.appendChild(itemEl);
+        });
+
+        secLi.appendChild(secUl);
+        taskListEl.appendChild(secLi);
       });
     }
 
@@ -1324,17 +1390,25 @@
   }
 
   function moveTaskManual(taskId, direction) {
-    const sorted = [...state.tasks].sort((a, b) => (a.order || 0) - (b.order || 0));
-    const idx = sorted.findIndex(t => t.id === taskId);
+    const task = state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    // Filter tasks in the same priority section
+    const sectionKey = task.priority || 'none';
+    const sectionTasks = state.tasks
+      .filter(t => !t.completedAt && (t.priority || 'none') === sectionKey)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    const idx = sectionTasks.findIndex(t => t.id === taskId);
     if (idx === -1) return;
 
     const targetIdx = idx + direction;
-    if (targetIdx < 0 || targetIdx >= sorted.length) return;
+    if (targetIdx < 0 || targetIdx >= sectionTasks.length) return;
 
-    // Swap order values
-    const tempOrder = sorted[idx].order;
-    sorted[idx].order = sorted[targetIdx].order;
-    sorted[targetIdx].order = tempOrder;
+    // Swap order values between current task and adjacent task in section
+    const tempOrder = sectionTasks[idx].order;
+    sectionTasks[idx].order = sectionTasks[targetIdx].order;
+    sectionTasks[targetIdx].order = tempOrder;
 
     saveToStorage();
     announcePolite(direction < 0 ? 'Moved up' : 'Moved down');
@@ -1342,16 +1416,30 @@
   }
 
   function reorderTasksManual(sourceId, targetId) {
-    const sorted = [...state.tasks].sort((a, b) => (a.order || 0) - (b.order || 0));
-    const fromIndex = sorted.findIndex(t => t.id === sourceId);
-    const toIndex = sorted.findIndex(t => t.id === targetId);
+    const sourceTask = state.tasks.find(t => t.id === sourceId);
+    const targetTask = state.tasks.find(t => t.id === targetId);
+    if (!sourceTask || !targetTask) return;
+
+    // Drag reorder works only inside the same section
+    const sourceKey = sourceTask.priority || 'none';
+    const targetKey = targetTask.priority || 'none';
+    if (sourceKey !== targetKey) {
+      return;
+    }
+
+    const sectionTasks = state.tasks
+      .filter(t => !t.completedAt && (t.priority || 'none') === sourceKey)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    const fromIndex = sectionTasks.findIndex(t => t.id === sourceId);
+    const toIndex = sectionTasks.findIndex(t => t.id === targetId);
     if (fromIndex === -1 || toIndex === -1) return;
 
-    const [moved] = sorted.splice(fromIndex, 1);
-    sorted.splice(toIndex, 0, moved);
+    const [moved] = sectionTasks.splice(fromIndex, 1);
+    sectionTasks.splice(toIndex, 0, moved);
 
-    // Reassign continuous orders
-    sorted.forEach((t, i) => {
+    // Reassign continuous orders within this section
+    sectionTasks.forEach((t, i) => {
       t.order = i;
     });
 

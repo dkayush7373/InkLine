@@ -197,3 +197,30 @@ test('history completed this week calculation counts tasks in last 7 days', () =
   const countThisWeek = tasks.filter(t => t.completedAt && t.completedAt >= oneWeekAgo).length;
   assert.equal(countThisWeek, 2);
 });
+
+test('priority section grouping correctly partitions tasks and ignores empty sections', () => {
+  const tasks = [
+    { id: '1', priority: 'high', title: 'High 1' },
+    { id: '2', priority: 'high', title: 'High 2' },
+    { id: '3', priority: 'low', title: 'Low 1' }
+  ];
+
+  const PRIORITY_SECTIONS = [
+    { key: 'high', label: 'HIGH' },
+    { key: 'medium', label: 'MEDIUM' },
+    { key: 'low', label: 'LOW' },
+    { key: 'none', label: 'NO PRIORITY' }
+  ];
+
+  const sections = PRIORITY_SECTIONS.map(p => ({
+    key: p.key,
+    label: p.label,
+    tasks: tasks.filter(t => (t.priority || 'none') === p.key)
+  })).filter(sec => sec.tasks.length > 0);
+
+  assert.equal(sections.length, 2);
+  assert.equal(sections[0].key, 'high');
+  assert.equal(sections[0].tasks.length, 2);
+  assert.equal(sections[1].key, 'low');
+  assert.equal(sections[1].tasks.length, 1);
+});

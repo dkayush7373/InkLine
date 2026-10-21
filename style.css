@@ -973,6 +973,80 @@ body {
   width: 100%;
 }
 
+/* Priority Sections (Feature 2) */
+.priority-section {
+  list-style: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.priority-section:last-child {
+  border-bottom: none;
+}
+
+.priority-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background-color: var(--bg-paper);
+}
+
+.priority-section-title {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-meta);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.priority-section-rule {
+  flex: 1;
+  height: 1px;
+  background-color: var(--border);
+}
+
+.section-collapse-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast), transform var(--transition-fast);
+}
+
+.section-collapse-btn:hover {
+  color: var(--ink);
+}
+
+.section-collapse-btn svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  transition: transform var(--transition-fast);
+}
+
+.priority-section.is-collapsed .section-collapse-btn svg {
+  transform: rotate(-90deg);
+}
+
+.priority-section.is-collapsed .section-task-list {
+  display: none;
+}
+
 .history-summary {
   padding: var(--space-3) var(--space-4);
   font-size: 13px;
