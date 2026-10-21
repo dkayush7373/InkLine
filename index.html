@@ -304,6 +304,82 @@
       </div>
     </main>
 
+    <!-- Focus Timer Canvas (Feature 7 Showpiece) -->
+    <main id="focusCanvas" class="focus-container" role="region" aria-label="Focus timer" style="display: none;">
+      <!-- Mode Tabs with Sliding Indicator -->
+      <nav class="focus-modes-nav" aria-label="Timer modes">
+        <div class="focus-modes-list" role="tablist">
+          <button type="button" role="tab" id="modeFocusBtn" class="focus-mode-btn is-active" aria-selected="true" data-mode="focus">Focus</button>
+          <button type="button" role="tab" id="modeShortBtn" class="focus-mode-btn" aria-selected="false" data-mode="short">Short break</button>
+          <button type="button" role="tab" id="modeLongBtn" class="focus-mode-btn" aria-selected="false" data-mode="long">Long break</button>
+          <div id="focusModeIndicator" class="focus-mode-indicator" aria-hidden="true"></div>
+        </div>
+      </nav>
+
+      <!-- Presets & Custom Duration Bar -->
+      <div class="timer-presets-bar">
+        <div id="timerPresetsGroup" class="timer-presets-group" role="group" aria-label="Time presets"></div>
+        <div class="custom-preset-wrapper">
+          <input type="number" id="customMinutesInput" class="custom-minutes-input" min="1" max="180" placeholder="Min" aria-label="Custom duration in minutes">
+          <button type="button" id="setCustomMinutesBtn" class="btn btn-secondary btn-sm">Set</button>
+        </div>
+      </div>
+
+      <!-- Main Focus Card -->
+      <div class="focus-card">
+        <!-- SVG Timer Watch-Face Ring -->
+        <div class="timer-ring-wrapper">
+          <svg viewBox="0 0 320 320" class="timer-svg" aria-hidden="true">
+            <g id="timerTicksGroup" class="timer-ticks"></g>
+            <circle cx="160" cy="160" r="120" class="timer-track-circle" fill="none" stroke="var(--border)" stroke-width="6" />
+            <circle id="timerProgressCircle" cx="160" cy="160" r="120" class="timer-progress-circle" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round" stroke-dasharray="753.982" stroke-dashoffset="0" transform="rotate(-90 160 160)" />
+          </svg>
+
+          <!-- Centered Inner Display -->
+          <div class="timer-display-inner">
+            <span id="timerModeLabel" class="timer-mode-label">FOCUS</span>
+            <span id="timerTimeDisplay" class="timer-digits">25:00</span>
+            <span id="timerEndsAtLine" class="timer-ends-at"></span>
+          </div>
+        </div>
+
+        <!-- Finish State Overlay / Banner -->
+        <div id="timerFinishCard" class="timer-finish-card" style="display: none;">
+          <h4 class="finish-heading">Time is up</h4>
+          <div class="finish-actions">
+            <button type="button" id="stopAlarmBtn" class="btn btn-primary">Stop</button>
+            <button type="button" id="startBreakBtn" class="btn btn-secondary">Start break</button>
+          </div>
+        </div>
+
+        <!-- Timer Control Buttons -->
+        <div class="timer-controls">
+          <button type="button" id="timerStartBtn" class="btn btn-primary">Start</button>
+          <button type="button" id="timerResetBtn" class="btn btn-secondary">Reset</button>
+          <button type="button" id="timerMusicBtn" class="btn btn-secondary" aria-haspopup="dialog" aria-expanded="false">Music</button>
+          <button type="button" id="timerFullscreenBtn" class="btn btn-secondary" aria-label="Toggle fullscreen timer">Fullscreen</button>
+        </div>
+
+        <!-- Optional "Focusing on" Dropdown -->
+        <div class="focusing-on-wrapper">
+          <label for="focusTaskSelect">Focusing on</label>
+          <select id="focusTaskSelect" class="select-input">
+            <option value="">None selected</option>
+          </select>
+        </div>
+
+        <!-- Real Session Log -->
+        <div id="focusSessionLog" class="focus-session-log">0 sessions today, 0 minutes</div>
+
+        <!-- Alarm Volume & Test -->
+        <div class="alarm-controls-row">
+          <label for="alarmVolumeRange">Alarm volume</label>
+          <input type="range" id="alarmVolumeRange" min="0" max="100" value="80" class="volume-slider">
+          <button type="button" id="testAlarmBtn" class="btn btn-secondary btn-sm">Test alarm</button>
+        </div>
+      </div>
+    </main>
+
     <!-- Page Footer -->
     <footer class="app-footer">
       <span class="tagline-text">"Write it down. Draw the line."</span>

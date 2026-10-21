@@ -487,3 +487,57 @@ test('swipe gestures: evaluateSwipeGesture pure function threshold logic', () =>
   assert.equal(evaluateSwipeGesture(60, true), 'spring-back');
 });
 
+test('focus timer: duration validation, formatting, and end-time math', () => {
+  function formatTimerDigits(ms) {
+    const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  function calculateTimerProgress(remainingMs, totalMs) {
+    if (!totalMs || totalMs <= 0) return 0;
+    return Math.max(0, Math.min(1, (totalMs - remainingMs) / totalMs));
+  }
+
+  function calculateRemainingMs(endTimestamp, now = Date.now()) {
+    if (!endTimestamp) return 0;
+    return Math.max(0, endTimestamp - now);
+  }
+
+  function validateCustomMinutes(val) {
+    const num = parseInt(val, 10);
+    if (isNaN(num) || num < 1 || num > 180) return null;
+    return num;
+  }
+
+  // 1. Digits formatting
+  assert.equal(formatTimerDigits(25 * 60 * 1000), '25:00');
+  assert.equal(formatTimerDigits(5 * 60 * 1000), '05:00');
+  assert.equal(formatTimerDigits(45 * 1000), '00:45');
+  assert.equal(formatTimerDigits(0), '00:00');
+  assert.equal(formatTimerDigits(-500), '00:00');
+
+  // 2. Custom minutes validation (1 to 180)
+  assert.equal(validateCustomMinutes(25), 25);
+  assert.equal(validateCustomMinutes('1'), 1);
+  assert.equal(validateCustomMinutes('180'), 180);
+  assert.equal(validateCustomMinutes('0'), null);
+  assert.equal(validateCustomMinutes('-10'), null);
+  assert.equal(validateCustomMinutes('181'), null);
+  assert.equal(validateCustomMinutes('abc'), null);
+
+  // 3. Progress computation
+  assert.equal(calculateTimerProgress(25 * 60 * 1000, 25 * 60 * 1000), 0);
+  assert.equal(calculateTimerProgress(0, 25 * 60 * 1000), 1);
+  assert.equal(calculateTimerProgress(12.5 * 60 * 1000, 25 * 60 * 1000), 0.5);
+
+  // 4. End timestamp math
+  const startNow = 1000000;
+  const endTimestamp = startNow + 25 * 60 * 1000;
+  assert.equal(calculateRemainingMs(endTimestamp, startNow), 25 * 60 * 1000);
+  assert.equal(calculateRemainingMs(endTimestamp, startNow + 10 * 60 * 1000), 15 * 60 * 1000);
+  assert.equal(calculateRemainingMs(endTimestamp, endTimestamp + 5000), 0); // Stops at 0 after time ends
+});
+
+

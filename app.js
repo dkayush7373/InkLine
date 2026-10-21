@@ -874,7 +874,31 @@
   function render() {
     renderDateHeader();
     renderTabs();
-    renderTasksList();
+
+    const taskCanvas = document.getElementById('taskCanvas');
+    const focusCanvas = document.getElementById('focusCanvas');
+    const addSection = document.querySelector('.add-section');
+    const filterBar = document.querySelector('.filter-bar');
+    const dateSection = document.querySelector('.date-section');
+
+    if (state.filter === 'focus') {
+      if (taskCanvas) taskCanvas.style.display = 'none';
+      if (focusCanvas) focusCanvas.style.display = 'flex';
+      if (addSection) addSection.style.display = 'none';
+      if (filterBar) filterBar.style.display = 'none';
+      if (dateSection) dateSection.style.display = 'none';
+      if (typeof renderFocusView === 'function') {
+        renderFocusView();
+      }
+    } else {
+      if (taskCanvas) taskCanvas.style.display = 'block';
+      if (focusCanvas) focusCanvas.style.display = 'none';
+      if (addSection) addSection.style.display = '';
+      if (filterBar) filterBar.style.display = '';
+      if (dateSection) dateSection.style.display = '';
+      renderTasksList();
+    }
+
     renderUndoToast();
     updateTabsIndicator();
   }
@@ -2763,6 +2787,717 @@
   }
 
   // ==========================================================================
+  // Focus Timer (Feature 7 Showpiece)
+  // ==========================================================================
+  const STORAGE_KEY_TIMER = 'inkline.timer.v1';
+  const STORAGE_KEY_TIMER_PREFS = 'inkline.timer_prefs.v1';
+  const STORAGE_KEY_SESSIONS = 'inkline.sessions.v1';
+  const CURRENT_TAB_ID = 'tab_' + Math.random().toString(36).substring(2, 9);
+  const RING_CIRCUMFERENCE = 753.982;
+
+  const timerState = {
+    mode: 'focus', // 'focus' | 'short' | 'long'
+    durations: { focus: 25, short: 5, long: 15 },
+    totalMs: 25 * 60 * 1000,
+    remainingMs: 25 * 60 * 1000,
+    endTimestamp: null,
+    isRunning: false,
+    isFinished: false,
+    focusTaskId: null,
+    alarmVolume: 0.8,
+    intervalId: null,
+    wakeLock: null,
+    startedByTabId: null,
+    announcedOneMinuteLeft: false
+  };
+
+  let audioCtx = null;
+  let alarmInterval = null;
+  let alarmTimeout = null;
+
+  function getAudioContext() {
+    if (!audioCtx) {
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtxClass) {
+        audioCtx = new AudioCtxClass();
+      }
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    return audioCtx;
+  }
+
+  function playSoftBell(volume = 0.8) {
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const masterGain = ctx.createGain();
+      const safeVolume = Math.max(0, Math.min(1, volume));
+      masterGain.gain.setValueAtTime(safeVolume, now);
+      masterGain.connect(ctx.destination);
+
+      const partials = [
+        { freq: 523.25, gain: 0.5, decay: 2.2 },
+        { freq: 1046.5, gain: 0.25, decay: 1.6 },
+        { freq: 1444.17, gain: 0.15, decay: 1.1 },
+        { freq: 2129.62, gain: 0.08, decay: 0.7 }
+      ];
+
+      partials.forEach(p => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(p.freq, now);
+        g.gain.setValueAtTime(p.gain, now);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + p.decay);
+        osc.connect(g);
+        g.connect(masterGain);
+        osc.start(now);
+        osc.stop(now + p.decay);
+      });
+    } catch (e) {}
+  }
+
+  function startAlarmLoop() {
+    stopAlarmLoop();
+    playSoftBell(timerState.alarmVolume);
+
+    if ('vibrate' in navigator) {
+      try { navigator.vibrate([200, 100, 200, 100, 200]); } catch (e) {}
+    }
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification('Inkline', {
+          body: 'Time is up',
+          icon: 'favicon.png'
+        });
+      } catch (e) {}
+    }
+
+    alarmInterval = setInterval(() => {
+      playSoftBell(timerState.alarmVolume);
+      if ('vibrate' in navigator) {
+        try { navigator.vibrate([200, 100, 200]); } catch (e) {}
+      }
+    }, 3000);
+
+    alarmTimeout = setTimeout(() => {
+      stopAlarmLoop();
+    }, 60000);
+  }
+
+  function stopAlarmLoop() {
+    if (alarmInterval) {
+      clearInterval(alarmInterval);
+      alarmInterval = null;
+    }
+    if (alarmTimeout) {
+      clearTimeout(alarmTimeout);
+      alarmTimeout = null;
+    }
+  }
+
+  async function requestWakeLock() {
+    if ('wakeLock' in navigator && !timerState.wakeLock) {
+      try {
+        timerState.wakeLock = await navigator.wakeLock.request('screen');
+        timerState.wakeLock.addEventListener('release', () => {
+          timerState.wakeLock = null;
+        });
+      } catch (e) {
+        timerState.wakeLock = null;
+      }
+    }
+  }
+
+  function releaseWakeLock() {
+    if (timerState.wakeLock) {
+      try {
+        timerState.wakeLock.release();
+      } catch (e) {}
+      timerState.wakeLock = null;
+    }
+  }
+
+  function formatTimerDigits(ms) {
+    const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  function calculateTimerProgress(remainingMs, totalMs) {
+    if (!totalMs || totalMs <= 0) return 0;
+    return Math.max(0, Math.min(1, (totalMs - remainingMs) / totalMs));
+  }
+
+  function calculateRemainingMs(endTimestamp, now = Date.now()) {
+    if (!endTimestamp) return 0;
+    return Math.max(0, endTimestamp - now);
+  }
+
+  function validateCustomMinutes(val) {
+    const num = parseInt(val, 10);
+    if (isNaN(num) || num < 1 || num > 180) return null;
+    return num;
+  }
+
+  function formatEndsAtTime(dateObj) {
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        hour: 'numeric',
+        minute: '2-digit'
+      }).format(dateObj);
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function loadTimerPrefs() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_TIMER_PREFS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          if (parsed.durations) {
+            ['focus', 'short', 'long'].forEach(m => {
+              const v = parseInt(parsed.durations[m], 10);
+              if (v >= 1 && v <= 180) {
+                timerState.durations[m] = v;
+              }
+            });
+          }
+          if (typeof parsed.alarmVolume === 'number') {
+            timerState.alarmVolume = Math.max(0, Math.min(1, parsed.alarmVolume));
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  function saveTimerPrefs() {
+    try {
+      const payload = {
+        durations: timerState.durations,
+        alarmVolume: timerState.alarmVolume
+      };
+      localStorage.setItem(STORAGE_KEY_TIMER_PREFS, JSON.stringify(payload));
+    } catch (e) {}
+  }
+
+  function loadSessionsFromStorage() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_SESSIONS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  }
+
+  function saveSessionRecord(mode, durationMinutes, taskId) {
+    try {
+      const list = loadSessionsFromStorage();
+      list.push({
+        id: 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        mode,
+        durationMinutes,
+        completedAt: Date.now(),
+        taskId: taskId || null
+      });
+      localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(list));
+    } catch (e) {}
+  }
+
+  function updateSessionLogDisplay() {
+    const el = document.getElementById('focusSessionLog');
+    if (!el) return;
+    const sessions = loadSessionsFromStorage();
+    const today = state.todayString;
+    const todaySessions = sessions.filter(s => getLocalDateString(new Date(s.completedAt)) === today);
+    const count = todaySessions.length;
+    const totalMins = todaySessions.reduce((acc, s) => acc + (s.durationMinutes || 0), 0);
+    el.textContent = `${count} session${count === 1 ? '' : 's'} today, ${totalMins} minute${totalMins === 1 ? '' : 's'}`;
+  }
+
+  function saveRunningTimerState() {
+    try {
+      const payload = {
+        mode: timerState.mode,
+        totalMs: timerState.totalMs,
+        remainingMs: timerState.remainingMs,
+        endTimestamp: timerState.endTimestamp,
+        isRunning: timerState.isRunning,
+        isFinished: timerState.isFinished,
+        focusTaskId: timerState.focusTaskId,
+        startedByTabId: timerState.startedByTabId
+      };
+      localStorage.setItem(STORAGE_KEY_TIMER, JSON.stringify(payload));
+    } catch (e) {}
+  }
+
+  function initTimerTicks() {
+    const ticksGroup = document.getElementById('timerTicksGroup');
+    if (!ticksGroup || ticksGroup.children.length > 0) return;
+    const cx = 160;
+    const cy = 160;
+    for (let i = 0; i < 60; i++) {
+      const angle = (i * 6 * Math.PI) / 180;
+      const isMajor = i % 5 === 0;
+      const rInner = isMajor ? 134 : 138;
+      const rOuter = 144;
+      const x1 = cx + rInner * Math.sin(angle);
+      const y1 = cy - rInner * Math.cos(angle);
+      const x2 = cx + rOuter * Math.sin(angle);
+      const y2 = cy - rOuter * Math.cos(angle);
+
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', x1.toFixed(2));
+      line.setAttribute('y1', y1.toFixed(2));
+      line.setAttribute('x2', x2.toFixed(2));
+      line.setAttribute('y2', y2.toFixed(2));
+      line.setAttribute('stroke', 'var(--border)');
+      line.setAttribute('stroke-width', isMajor ? '1.5' : '1');
+      ticksGroup.appendChild(line);
+    }
+  }
+
+  function updateFocusRingProgress(progress) {
+    const circle = document.getElementById('timerProgressCircle');
+    if (circle) {
+      const offset = RING_CIRCUMFERENCE * (1 - progress);
+      circle.style.strokeDashoffset = offset.toFixed(2);
+    }
+  }
+
+  function updateFocusModeIndicator() {
+    const activeBtn = document.querySelector(`.focus-mode-btn[data-mode="${timerState.mode}"]`);
+    const indicator = document.getElementById('focusModeIndicator');
+    if (activeBtn && indicator && activeBtn.parentElement) {
+      const parentRect = activeBtn.parentElement.getBoundingClientRect();
+      const btnRect = activeBtn.getBoundingClientRect();
+      const left = btnRect.left - parentRect.left;
+      indicator.style.left = `${left}px`;
+      indicator.style.width = `${btnRect.width}px`;
+    }
+  }
+
+  function renderFocusView() {
+    initTimerTicks();
+    updateFocusModeIndicator();
+
+    // Mode buttons aria-selected
+    const modeBtns = document.querySelectorAll('.focus-mode-btn');
+    modeBtns.forEach(btn => {
+      const isActive = btn.getAttribute('data-mode') === timerState.mode;
+      btn.classList.toggle('is-active', isActive);
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+
+    // Presets bar
+    const presetsGroup = document.getElementById('timerPresetsGroup');
+    if (presetsGroup) {
+      presetsGroup.innerHTML = '';
+      const presets = [15, 25, 45, 60];
+      const activeMinutes = Math.round(timerState.totalMs / 60000);
+      presets.forEach(p => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'preset-btn' + (activeMinutes === p ? ' is-active' : '');
+        btn.textContent = `${p}m`;
+        btn.setAttribute('aria-label', `${p} minutes`);
+        btn.addEventListener('click', () => {
+          setTimerDuration(p, true);
+        });
+        presetsGroup.appendChild(btn);
+      });
+    }
+
+    // Inner display
+    const timeDisplay = document.getElementById('timerTimeDisplay');
+    if (timeDisplay) {
+      timeDisplay.textContent = formatTimerDigits(timerState.remainingMs);
+    }
+
+    const modeLabel = document.getElementById('timerModeLabel');
+    if (modeLabel) {
+      if (timerState.isFinished) {
+        modeLabel.textContent = 'DONE';
+      } else if (timerState.isRunning) {
+        modeLabel.textContent = timerState.mode === 'short' ? 'SHORT BREAK' : (timerState.mode === 'long' ? 'LONG BREAK' : 'FOCUS');
+      } else {
+        const isPaused = timerState.remainingMs < timerState.totalMs && timerState.remainingMs > 0;
+        modeLabel.textContent = isPaused ? 'PAUSED' : (timerState.mode === 'short' ? 'SHORT BREAK' : (timerState.mode === 'long' ? 'LONG BREAK' : 'FOCUS'));
+      }
+    }
+
+    const endsAtLine = document.getElementById('timerEndsAtLine');
+    if (endsAtLine) {
+      if (timerState.isRunning && timerState.endTimestamp) {
+        endsAtLine.textContent = `Ends at ${formatEndsAtTime(new Date(timerState.endTimestamp))}`;
+      } else {
+        endsAtLine.textContent = '';
+      }
+    }
+
+    // Progress ring
+    const progress = calculateTimerProgress(timerState.remainingMs, timerState.totalMs);
+    updateFocusRingProgress(progress);
+
+    // Start button label
+    const startBtn = document.getElementById('timerStartBtn');
+    if (startBtn) {
+      if (timerState.isRunning) {
+        startBtn.textContent = 'Pause';
+      } else if (timerState.remainingMs < timerState.totalMs && timerState.remainingMs > 0) {
+        startBtn.textContent = 'Resume';
+      } else {
+        startBtn.textContent = 'Start';
+      }
+    }
+
+    // Finish card visibility
+    const finishCard = document.getElementById('timerFinishCard');
+    if (finishCard) {
+      finishCard.style.display = timerState.isFinished ? 'block' : 'none';
+    }
+
+    // Focusing on dropdown
+    const select = document.getElementById('focusTaskSelect');
+    if (select) {
+      const activeTasks = state.tasks.filter(t => !t.completedAt);
+      const currentVal = timerState.focusTaskId || '';
+      select.innerHTML = '<option value="">None selected</option>';
+      activeTasks.forEach(task => {
+        const opt = document.createElement('option');
+        opt.value = task.id;
+        opt.textContent = task.title.slice(0, 48);
+        if (task.id === currentVal) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    // Alarm volume slider
+    const volumeSlider = document.getElementById('alarmVolumeRange');
+    if (volumeSlider) {
+      volumeSlider.value = String(Math.round(timerState.alarmVolume * 100));
+    }
+
+    // Session log
+    updateSessionLogDisplay();
+  }
+
+  function setTimerMode(mode) {
+    if (!['focus', 'short', 'long'].includes(mode)) return;
+    if (timerState.isRunning) {
+      pauseFocusTimer();
+    }
+    stopAlarmLoop();
+    timerState.mode = mode;
+    timerState.isFinished = false;
+    const minutes = timerState.durations[mode] || (mode === 'short' ? 5 : (mode === 'long' ? 15 : 25));
+    timerState.totalMs = minutes * 60 * 1000;
+    timerState.remainingMs = timerState.totalMs;
+    timerState.endTimestamp = null;
+    timerState.announcedOneMinuteLeft = false;
+    saveRunningTimerState();
+    renderFocusView();
+  }
+
+  function setTimerDuration(minutes, saveAsDefault = true) {
+    const valid = validateCustomMinutes(minutes);
+    if (!valid) return;
+    if (timerState.isRunning) {
+      pauseFocusTimer();
+    }
+    stopAlarmLoop();
+    timerState.isFinished = false;
+    if (saveAsDefault) {
+      timerState.durations[timerState.mode] = valid;
+      saveTimerPrefs();
+    }
+    timerState.totalMs = valid * 60 * 1000;
+    timerState.remainingMs = timerState.totalMs;
+    timerState.endTimestamp = null;
+    timerState.announcedOneMinuteLeft = false;
+    saveRunningTimerState();
+    renderFocusView();
+  }
+
+  function toggleFocusTimer() {
+    if (timerState.isRunning) {
+      pauseFocusTimer();
+    } else {
+      startFocusTimer();
+    }
+  }
+
+  function startFocusTimer() {
+    getAudioContext();
+    stopAlarmLoop();
+    timerState.isFinished = false;
+    timerState.isRunning = true;
+    timerState.startedByTabId = CURRENT_TAB_ID;
+    timerState.endTimestamp = Date.now() + timerState.remainingMs;
+
+    requestWakeLock();
+    saveRunningTimerState();
+
+    const modeName = timerState.mode === 'short' ? 'short break' : (timerState.mode === 'long' ? 'long break' : 'focus');
+    const mins = Math.ceil(timerState.remainingMs / 60000);
+    announcePolite(`Focus timer started for ${mins} minutes ${modeName}`);
+
+    renderFocusView();
+    startTickLoop();
+  }
+
+  function pauseFocusTimer() {
+    if (!timerState.isRunning) return;
+    timerState.isRunning = false;
+    timerState.remainingMs = calculateRemainingMs(timerState.endTimestamp);
+    timerState.endTimestamp = null;
+
+    stopTickLoop();
+    releaseWakeLock();
+    saveRunningTimerState();
+
+    document.title = 'Inkline';
+    announcePolite('Focus timer paused');
+    renderFocusView();
+  }
+
+  function resetFocusTimer() {
+    stopTickLoop();
+    stopAlarmLoop();
+    releaseWakeLock();
+
+    timerState.isRunning = false;
+    timerState.isFinished = false;
+    const mins = timerState.durations[timerState.mode] || 25;
+    timerState.totalMs = mins * 60 * 1000;
+    timerState.remainingMs = timerState.totalMs;
+    timerState.endTimestamp = null;
+    timerState.announcedOneMinuteLeft = false;
+
+    document.title = 'Inkline';
+    announcePolite('Focus timer reset');
+    saveRunningTimerState();
+    renderFocusView();
+  }
+
+  function startTickLoop() {
+    stopTickLoop();
+    timerState.intervalId = setInterval(onTimerTick, 250);
+  }
+
+  function stopTickLoop() {
+    if (timerState.intervalId) {
+      clearInterval(timerState.intervalId);
+      timerState.intervalId = null;
+    }
+  }
+
+  function onTimerTick() {
+    if (!timerState.isRunning || !timerState.endTimestamp) return;
+    const now = Date.now();
+    timerState.remainingMs = Math.max(0, timerState.endTimestamp - now);
+
+    // Screen reader 1 minute remaining check
+    if (timerState.remainingMs <= 60000 && !timerState.announcedOneMinuteLeft) {
+      announcePolite('One minute remaining');
+      timerState.announcedOneMinuteLeft = true;
+    }
+
+    // Update document title
+    const modeTitle = timerState.mode === 'short' ? 'Short break' : (timerState.mode === 'long' ? 'Long break' : 'Focus');
+    document.title = `${formatTimerDigits(timerState.remainingMs)} ${modeTitle} | Inkline`;
+
+    if (timerState.remainingMs <= 0) {
+      handleTimerFinish();
+    } else {
+      // Light update of digits and ring
+      const timeDisplay = document.getElementById('timerTimeDisplay');
+      if (timeDisplay) timeDisplay.textContent = formatTimerDigits(timerState.remainingMs);
+      const progress = calculateTimerProgress(timerState.remainingMs, timerState.totalMs);
+      updateFocusRingProgress(progress);
+    }
+  }
+
+  function handleTimerFinish() {
+    stopTickLoop();
+    releaseWakeLock();
+
+    timerState.isRunning = false;
+    timerState.isFinished = true;
+    timerState.remainingMs = 0;
+    timerState.endTimestamp = null;
+
+    document.title = 'Time is up | Inkline';
+    announcePolite('Time is up');
+
+    // Only originating tab sounds the alarm
+    if (timerState.startedByTabId === CURRENT_TAB_ID || !timerState.startedByTabId) {
+      startAlarmLoop();
+    }
+
+    // Save session record
+    const durationMinutes = Math.round(timerState.totalMs / 60000);
+    saveSessionRecord(timerState.mode, durationMinutes, timerState.focusTaskId);
+
+    saveRunningTimerState();
+    renderFocusView();
+  }
+
+  function setupFocusTimer() {
+    loadTimerPrefs();
+
+    // Check saved running timer
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_TIMER);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (saved && typeof saved === 'object') {
+          timerState.mode = ['focus', 'short', 'long'].includes(saved.mode) ? saved.mode : 'focus';
+          timerState.totalMs = typeof saved.totalMs === 'number' && saved.totalMs > 0 ? saved.totalMs : 25 * 60 * 1000;
+          timerState.focusTaskId = saved.focusTaskId || null;
+          timerState.startedByTabId = saved.startedByTabId || null;
+
+          if (saved.isRunning && saved.endTimestamp) {
+            const now = Date.now();
+            if (saved.endTimestamp > now) {
+              timerState.isRunning = true;
+              timerState.endTimestamp = saved.endTimestamp;
+              timerState.remainingMs = saved.endTimestamp - now;
+              startTickLoop();
+            } else {
+              timerState.isRunning = false;
+              timerState.isFinished = true;
+              timerState.remainingMs = 0;
+            }
+          } else if (typeof saved.remainingMs === 'number') {
+            timerState.remainingMs = Math.min(timerState.totalMs, Math.max(0, saved.remainingMs));
+          }
+        }
+      }
+    } catch (e) {}
+
+    // 1. Mode buttons click
+    const modeBtns = document.querySelectorAll('.focus-mode-btn');
+    modeBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.getAttribute('data-mode');
+        setTimerMode(mode);
+      });
+    });
+
+    // 2. Custom duration set
+    const customIn = document.getElementById('customMinutesInput');
+    const setCustomBtn = document.getElementById('setCustomMinutesBtn');
+    if (setCustomBtn && customIn) {
+      const applyCustom = () => {
+        const val = validateCustomMinutes(customIn.value);
+        if (val) {
+          setTimerDuration(val, true);
+          customIn.value = '';
+        }
+      };
+      setCustomBtn.addEventListener('click', applyCustom);
+      customIn.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          applyCustom();
+        }
+      });
+    }
+
+    // 3. Primary Start/Pause button
+    const startBtn = document.getElementById('timerStartBtn');
+    if (startBtn) {
+      startBtn.addEventListener('click', toggleFocusTimer);
+    }
+
+    // 4. Reset button
+    const resetBtn = document.getElementById('timerResetBtn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', resetFocusTimer);
+    }
+
+    // 5. Fullscreen button
+    const fullscreenBtn = document.getElementById('timerFullscreenBtn');
+    const focusCanvas = document.getElementById('focusCanvas');
+    if (fullscreenBtn && focusCanvas) {
+      fullscreenBtn.addEventListener('click', () => {
+        const isFull = focusCanvas.classList.toggle('is-fullscreen');
+        fullscreenBtn.textContent = isFull ? 'Exit fullscreen' : 'Fullscreen';
+        fullscreenBtn.setAttribute('aria-label', isFull ? 'Exit fullscreen timer' : 'Toggle fullscreen timer');
+      });
+    }
+
+    // 6. Finish actions: Stop and Start break
+    const stopAlarmBtn = document.getElementById('stopAlarmBtn');
+    if (stopAlarmBtn) {
+      stopAlarmBtn.addEventListener('click', () => {
+        stopAlarmLoop();
+        resetFocusTimer();
+      });
+    }
+
+    const startBreakBtn = document.getElementById('startBreakBtn');
+    if (startBreakBtn) {
+      startBreakBtn.addEventListener('click', () => {
+        stopAlarmLoop();
+        if (timerState.mode === 'focus') {
+          setTimerMode('short');
+          startFocusTimer();
+        } else {
+          setTimerMode('focus');
+          startFocusTimer();
+        }
+      });
+    }
+
+    // 7. Focusing on dropdown change
+    const select = document.getElementById('focusTaskSelect');
+    if (select) {
+      select.addEventListener('change', () => {
+        timerState.focusTaskId = select.value || null;
+        saveRunningTimerState();
+      });
+    }
+
+    // 8. Alarm volume and test button
+    const volumeSlider = document.getElementById('alarmVolumeRange');
+    if (volumeSlider) {
+      volumeSlider.addEventListener('input', e => {
+        timerState.alarmVolume = parseFloat(e.target.value) / 100;
+        saveTimerPrefs();
+      });
+    }
+
+    const testAlarmBtn = document.getElementById('testAlarmBtn');
+    if (testAlarmBtn) {
+      testAlarmBtn.addEventListener('click', () => {
+        getAudioContext();
+        playSoftBell(timerState.alarmVolume);
+      });
+    }
+
+    // Handle Escape for Fullscreen
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && focusCanvas && focusCanvas.classList.contains('is-fullscreen')) {
+        focusCanvas.classList.remove('is-fullscreen');
+        if (fullscreenBtn) {
+          fullscreenBtn.textContent = 'Fullscreen';
+          fullscreenBtn.setAttribute('aria-label', 'Toggle fullscreen timer');
+        }
+      }
+    });
+  }
+
+  // ==========================================================================
   // Self-Test Suite: window.inklineSelfTest()
   // Must run on temporary storage key and not touch real user data
   // ==========================================================================
@@ -2889,6 +3624,7 @@
     setupStorageSync();
     scheduleMidnightRefresh();
     setupVisibilityChange();
+    setupFocusTimer();
 
     // 5. Load data & initial render
     state.tasks = loadFromStorage();
@@ -2933,6 +3669,35 @@
             }
           }
         } catch (err) {}
+      } else if (e.key === STORAGE_KEY_TIMER) {
+        try {
+          if (e.newValue) {
+            const saved = JSON.parse(e.newValue);
+            if (saved && typeof saved === 'object') {
+              timerState.mode = ['focus', 'short', 'long'].includes(saved.mode) ? saved.mode : 'focus';
+              timerState.totalMs = typeof saved.totalMs === 'number' ? saved.totalMs : 25 * 60 * 1000;
+              timerState.focusTaskId = saved.focusTaskId || null;
+              timerState.startedByTabId = saved.startedByTabId || null;
+              if (saved.isRunning && saved.endTimestamp) {
+                const now = Date.now();
+                if (saved.endTimestamp > now) {
+                  timerState.isRunning = true;
+                  timerState.endTimestamp = saved.endTimestamp;
+                  timerState.remainingMs = saved.endTimestamp - now;
+                  startTickLoop();
+                }
+              } else if (!saved.isRunning) {
+                timerState.isRunning = false;
+                timerState.remainingMs = typeof saved.remainingMs === 'number' ? saved.remainingMs : timerState.totalMs;
+                stopTickLoop();
+              }
+              if (state.filter === 'focus') renderFocusView();
+            }
+          }
+        } catch (err) {}
+      } else if (e.key === STORAGE_KEY_TIMER_PREFS) {
+        loadTimerPrefs();
+        if (state.filter === 'focus') renderFocusView();
       }
     });
   }
