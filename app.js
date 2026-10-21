@@ -104,6 +104,57 @@
     return dueDateStr === todayStr;
   }
 
+  function formatCompletedTime(timestamp) {
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        hour: 'numeric',
+        minute: '2-digit'
+      }).format(new Date(timestamp)).toUpperCase();
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function getHistoryGroups(completedTasks) {
+    const groups = [];
+    const groupMap = new Map();
+    const todayStr = state.todayString;
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterdayStr = getLocalDateString(yesterdayDate);
+
+    completedTasks.forEach(task => {
+      const d = new Date(task.completedAt || Date.now());
+      const dateStr = getLocalDateString(d);
+      let label = '';
+      if (dateStr === todayStr) {
+        label = 'Today';
+      } else if (dateStr === yesterdayStr) {
+        label = 'Yesterday';
+      } else {
+        try {
+          label = new Intl.DateTimeFormat(undefined, {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          }).format(d);
+        } catch (e) {
+          label = dateStr;
+        }
+      }
+
+      if (!groupMap.has(dateStr)) {
+        const group = { dateStr, label, tasks: [] };
+        groupMap.set(dateStr, group);
+        groups.push(group);
+      }
+      groupMap.get(dateStr).tasks.push(task);
+    });
+
+    return groups;
+  }
+
   // Smart quick-add detection
   function detectQuickAddDate(title) {
     if (!title || typeof title !== 'string') return null;
@@ -400,19 +451,55 @@
     return { success: true, task: newTask };
   }
 
-  function toggleTaskCompletion(taskId) {
+  function completeTask(taskId) {
+    const taskIndex = state.tasks.findIndex(t => t.id === taskId);
+    if (taskIndex === -1) return;
+    const task = state.tasks[taskIndex];
+    if (task.completedAt) return;
+
+    const li = document.querySelector(`.task-item[data-id="${taskId}"]`);
+    const isReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const finalize = () => {
+      task.completedAt = Date.now();
+      saveToStorage();
+
+      const timerId = setTimeout(() => {
+        state.undoQueue = state.undoQueue.filter(entry => entry.task.id !== task.id);
+        renderUndoToast();
+      }, UNDO_DURATION_MS);
+
+      state.undoQueue.unshift({
+        type: 'complete',
+        task: task,
+        originalIndex: taskIndex,
+        timerId: timerId
+      });
+
+      announcePolite('Moved to History');
+      renderUndoToast();
+      render();
+    };
+
+    if (isReduced || !li) {
+      finalize();
+    } else {
+      li.classList.add('is-completing');
+      setTimeout(() => {
+        li.classList.add('is-sliding-out');
+        setTimeout(() => {
+          finalize();
+        }, 180);
+      }, 200);
+    }
+  }
+
+  function restoreTaskFromHistory(taskId) {
     const task = state.tasks.find(t => t.id === taskId);
     if (!task) return;
-
-    if (task.completedAt) {
-      task.completedAt = null;
-      announcePolite('Task reopened');
-    } else {
-      task.completedAt = Date.now();
-      announcePolite('Task completed');
-    }
-
+    task.completedAt = null;
     saveToStorage();
+    announcePolite('Task restored');
     render();
   }
 
@@ -451,12 +538,12 @@
 
     // Push into Undo Queue
     const timerId = setTimeout(() => {
-      // Remove this item from undoQueue when timer expires
       state.undoQueue = state.undoQueue.filter(entry => entry.task.id !== removedTask.id);
       renderUndoToast();
     }, UNDO_DURATION_MS);
 
     state.undoQueue.unshift({
+      type: 'delete',
       task: removedTask,
       originalIndex: index,
       timerId: timerId
@@ -473,21 +560,26 @@
     const entry = state.undoQueue.shift();
     clearTimeout(entry.timerId);
 
-    // Restore task at its original position if valid
-    const targetIndex = Math.min(entry.originalIndex, state.tasks.length);
-    state.tasks.splice(targetIndex, 0, entry.task);
-    saveToStorage();
-
-    announcePolite('Task restored');
-    renderUndoToast();
-    render();
+    if (entry.type === 'complete') {
+      entry.task.completedAt = null;
+      saveToStorage();
+      announcePolite('Task restored');
+      renderUndoToast();
+      render();
+    } else {
+      const targetIndex = Math.min(entry.originalIndex, state.tasks.length);
+      state.tasks.splice(targetIndex, 0, entry.task);
+      saveToStorage();
+      announcePolite('Task restored');
+      renderUndoToast();
+      render();
+    }
   }
 
-  function clearCompletedTasks() {
-    // Keep pending tasks untouched, even when search or filter is active
+  function clearHistoryTasks() {
     state.tasks = state.tasks.filter(t => !t.completedAt);
     saveToStorage();
-    announcePolite('Completed tasks cleared');
+    announcePolite('History cleared');
     render();
   }
 
@@ -501,62 +593,66 @@
     let filtered = state.tasks.filter(task => {
       switch (state.filter) {
         case 'today':
-          // Due today plus overdue (pending only), or completed today
-          if (task.completedAt) {
-            const completedDateStr = getLocalDateString(new Date(task.completedAt));
-            return completedDateStr === today;
-          }
+          if (task.completedAt) return false;
           if (!task.dueDate) return false;
           return isDueToday(task.dueDate, today) || isOverdue(task.dueDate, today);
 
         case 'upcoming':
-          // Future dates only, not completed
           if (task.completedAt) return false;
-          return task.dueDate && task.dueDate > today;
-
-        case 'done':
-          return Boolean(task.completedAt);
+          return Boolean(task.dueDate && task.dueDate > today);
 
         case 'all':
-        default:
+          if (task.completedAt) return false;
           return true;
+
+        case 'history':
+          return Boolean(task.completedAt);
+
+        default:
+          return !task.completedAt;
       }
     });
 
     // 2. Filter by Search Query
     if (state.searchQuery.trim()) {
       const q = state.searchQuery.trim().toLowerCase();
-      filtered = filtered.filter(task => task.title.toLowerCase().includes(q));
+      filtered = filtered.filter(task => {
+        if (task.title.toLowerCase().includes(q)) return true;
+        if (task.subtasks && Array.isArray(task.subtasks)) {
+          return task.subtasks.some(st => st.title && st.title.toLowerCase().includes(q));
+        }
+        return false;
+      });
     }
 
     // 3. Stable Sort
-    filtered.sort((a, b) => {
-      if (state.sortBy === 'manual') {
-        return (a.order || 0) - (b.order || 0);
-      }
-
-      if (state.sortBy === 'due') {
-        // Tasks with no due date go to bottom
-        if (a.dueDate && !b.dueDate) return -1;
-        if (!a.dueDate && b.dueDate) return 1;
-        if (a.dueDate && b.dueDate && a.dueDate !== b.dueDate) {
-          return a.dueDate.localeCompare(b.dueDate);
+    if (state.filter === 'history') {
+      filtered.sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+    } else {
+      filtered.sort((a, b) => {
+        if (state.sortBy === 'manual') {
+          return (a.order || 0) - (b.order || 0);
         }
-        // Stable tie-breaker: createdAt
-        return a.createdAt - b.createdAt;
-      }
 
-      if (state.sortBy === 'priority') {
-        const priorityWeight = { high: 3, medium: 2, low: 1, none: 0 };
-        const diff = (priorityWeight[b.priority] || 0) - (priorityWeight[a.priority] || 0);
-        if (diff !== 0) return diff;
-        // Stable tie-breaker: createdAt
-        return a.createdAt - b.createdAt;
-      }
+        if (state.sortBy === 'due') {
+          if (a.dueDate && !b.dueDate) return -1;
+          if (!a.dueDate && b.dueDate) return 1;
+          if (a.dueDate && b.dueDate && a.dueDate !== b.dueDate) {
+            return a.dueDate.localeCompare(b.dueDate);
+          }
+          return a.createdAt - b.createdAt;
+        }
 
-      // Default: 'created' (date added, oldest first)
-      return a.createdAt - b.createdAt;
-    });
+        if (state.sortBy === 'priority') {
+          const priorityWeight = { high: 3, medium: 2, low: 1, none: 0 };
+          const diff = (priorityWeight[b.priority] || 0) - (priorityWeight[a.priority] || 0);
+          if (diff !== 0) return diff;
+          return a.createdAt - b.createdAt;
+        }
+
+        return a.createdAt - b.createdAt;
+      });
+    }
 
     return filtered;
   }
@@ -567,17 +663,13 @@
     let countToday = 0;
     let countUpcoming = 0;
     let countAll = 0;
-    let countDone = 0;
+    let countHistory = 0;
 
     state.tasks.forEach(task => {
-      countAll++;
       if (task.completedAt) {
-        countDone++;
-        const completedDateStr = getLocalDateString(new Date(task.completedAt));
-        if (completedDateStr === today) {
-          countToday++;
-        }
+        countHistory++;
       } else {
+        countAll++;
         if (task.dueDate && (isDueToday(task.dueDate, today) || isOverdue(task.dueDate, today))) {
           countToday++;
         } else if (task.dueDate && task.dueDate > today) {
@@ -586,7 +678,7 @@
       }
     });
 
-    return { countToday, countUpcoming, countAll, countDone };
+    return { countToday, countUpcoming, countAll, countHistory };
   }
 
   // ==========================================================================
@@ -642,24 +734,25 @@
     const countTodayEl = document.getElementById('count-today');
     const countUpcomingEl = document.getElementById('count-upcoming');
     const countAllEl = document.getElementById('count-all');
-    const countDoneEl = document.getElementById('count-done');
+    const countHistoryEl = document.getElementById('count-history');
 
     if (countTodayEl) countTodayEl.textContent = `(${counts.countToday})`;
     if (countUpcomingEl) countUpcomingEl.textContent = `(${counts.countUpcoming})`;
     if (countAllEl) countAllEl.textContent = `(${counts.countAll})`;
-    if (countDoneEl) countDoneEl.textContent = `(${counts.countDone})`;
+    if (countHistoryEl) countHistoryEl.textContent = `(${counts.countHistory})`;
 
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach(tab => {
       const isSelected = tab.getAttribute('data-tab') === state.filter;
       tab.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+      tab.setAttribute('tabindex', isSelected ? '0' : '-1');
     });
   }
 
   function updateTabsIndicator() {
     const activeTab = document.querySelector(`.tab-btn[data-tab="${state.filter}"]`);
     const indicator = document.getElementById('tabsIndicator');
-    if (activeTab && indicator) {
+    if (activeTab && indicator && activeTab.parentElement && activeTab.parentElement.parentElement) {
       const tabRect = activeTab.getBoundingClientRect();
       const parentRect = activeTab.parentElement.parentElement.getBoundingClientRect();
       const left = tabRect.left - parentRect.left;
@@ -674,7 +767,7 @@
     const emptyStateEl = document.getElementById('emptyState');
     const allClearEl = document.getElementById('allClearMoment');
     const footerCountText = document.getElementById('footerCountText');
-    const openClearCompletedModalBtn = document.getElementById('openClearCompletedModalBtn');
+    const openClearHistoryModalBtn = document.getElementById('openClearHistoryModalBtn');
 
     if (!taskListEl) return;
 
@@ -683,6 +776,79 @@
 
     // Clear previous task DOM
     taskListEl.innerHTML = '';
+
+    // If History Tab
+    if (state.filter === 'history') {
+      if (allClearEl) allClearEl.classList.remove('is-visible');
+
+      if (openClearHistoryModalBtn) {
+        const hasCompletedTasks = state.tasks.some(t => t.completedAt);
+        openClearHistoryModalBtn.style.display = hasCompletedTasks ? 'inline-flex' : 'none';
+      }
+
+      if (visibleTasks.length === 0) {
+        if (emptyStateEl) {
+          emptyStateEl.style.display = 'flex';
+          renderEmptyStateContent();
+        }
+      } else {
+        if (emptyStateEl) emptyStateEl.style.display = 'none';
+
+        // History Summary: "X completed this week"
+        const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        const weekCount = state.tasks.filter(t => t.completedAt && t.completedAt >= oneWeekAgo).length;
+
+        const summaryLi = document.createElement('li');
+        summaryLi.className = 'history-summary';
+
+        const summaryText = document.createElement('span');
+        summaryText.textContent = `${weekCount} completed this week`;
+        summaryLi.appendChild(summaryText);
+
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.className = 'btn-text delete-text';
+        clearBtn.textContent = 'Clear history';
+        clearBtn.setAttribute('aria-label', 'Clear all completed tasks');
+        clearBtn.addEventListener('click', () => {
+          const clearHistoryDialog = document.getElementById('clearHistoryDialogOverlay');
+          openModal(clearHistoryDialog);
+        });
+        summaryLi.appendChild(clearBtn);
+        taskListEl.appendChild(summaryLi);
+
+        // Day Groups
+        const groups = getHistoryGroups(visibleTasks);
+        groups.forEach(group => {
+          const groupLi = document.createElement('li');
+          groupLi.className = 'history-day-group';
+
+          const heading = document.createElement('div');
+          heading.className = 'history-day-heading';
+          heading.textContent = group.label;
+          groupLi.appendChild(heading);
+
+          const groupUl = document.createElement('ul');
+          groupUl.className = 'task-list';
+          group.tasks.forEach(task => {
+            const itemEl = createHistoryItemElement(task);
+            groupUl.appendChild(itemEl);
+          });
+          groupLi.appendChild(groupUl);
+          taskListEl.appendChild(groupLi);
+        });
+      }
+
+      if (footerCountText) {
+        footerCountText.textContent = `${visibleTasks.length} completed ${visibleTasks.length === 1 ? 'task' : 'tasks'}`;
+      }
+      return;
+    }
+
+    // Active views (Today, Upcoming, All)
+    if (openClearHistoryModalBtn) {
+      openClearHistoryModalBtn.style.display = 'none';
+    }
 
     // Check "All Clear" Moment (Signature Detail 8)
     // Only in 'today' tab when there were tasks due today and all are finished
@@ -720,12 +886,90 @@
     if (footerCountText) {
       footerCountText.textContent = `${totalMatching} ${totalMatching === 1 ? 'task' : 'tasks'}`;
     }
+  }
 
-    // Show/hide Clear Completed button based on presence of completed tasks
-    const hasCompletedTasks = state.tasks.some(t => t.completedAt);
-    if (openClearCompletedModalBtn) {
-      openClearCompletedModalBtn.style.display = hasCompletedTasks ? 'inline-flex' : 'none';
+  // Create History item DOM element
+  function createHistoryItemElement(task) {
+    const li = document.createElement('li');
+    li.className = 'history-item';
+    li.setAttribute('data-id', task.id);
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'task-content';
+
+    const titleWrap = document.createElement('div');
+    titleWrap.className = 'task-title-wrapper';
+
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'task-title';
+    titleSpan.textContent = task.title;
+    titleWrap.appendChild(titleSpan);
+    contentDiv.appendChild(titleWrap);
+
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'task-meta';
+
+    const metaParts = [];
+
+    if (task.completedAt) {
+      const timeSpan = document.createElement('span');
+      timeSpan.textContent = `COMPLETED ${formatCompletedTime(task.completedAt)}`;
+      metaParts.push(timeSpan);
     }
+
+    if (task.priority && task.priority !== 'none') {
+      const prioritySpan = document.createElement('span');
+      prioritySpan.textContent = task.priority.toUpperCase();
+      metaParts.push(prioritySpan);
+    }
+
+    if (task.category) {
+      const catSpan = document.createElement('span');
+      catSpan.textContent = task.category.toUpperCase();
+      metaParts.push(catSpan);
+    }
+
+    if (task.subtasks && Array.isArray(task.subtasks) && task.subtasks.length > 0) {
+      const subSpan = document.createElement('span');
+      const count = task.subtasks.length;
+      subSpan.textContent = `${count} ${count === 1 ? 'SUBTASK' : 'SUBTASKS'}`;
+      metaParts.push(subSpan);
+    }
+
+    metaParts.forEach((part, idx) => {
+      if (idx > 0) {
+        const dot = document.createElement('span');
+        dot.textContent = ' · ';
+        dot.setAttribute('aria-hidden', 'true');
+        metaDiv.appendChild(dot);
+      }
+      metaDiv.appendChild(part);
+    });
+
+    contentDiv.appendChild(metaDiv);
+    li.appendChild(contentDiv);
+
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'history-actions';
+
+    const restoreBtn = document.createElement('button');
+    restoreBtn.type = 'button';
+    restoreBtn.className = 'btn-text';
+    restoreBtn.setAttribute('data-action', 'restore');
+    restoreBtn.setAttribute('aria-label', `Restore "${task.title}"`);
+    restoreBtn.textContent = 'Restore';
+    actionsDiv.appendChild(restoreBtn);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'btn-text delete-text';
+    deleteBtn.setAttribute('data-action', 'delete-history');
+    deleteBtn.setAttribute('aria-label', `Delete "${task.title}"`);
+    deleteBtn.textContent = 'Delete';
+    actionsDiv.appendChild(deleteBtn);
+
+    li.appendChild(actionsDiv);
+    return li;
   }
 
   // Create single task DOM item (Pure textContent safety)
@@ -908,7 +1152,7 @@
         textEl.textContent = COPY.EMPTY_TODAY;
         break;
 
-      case 'done':
+      case 'history':
         // Ink pen / fountain pen SVG
         svgEl.innerHTML = '<path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle>';
         textEl.textContent = COPY.EMPTY_DONE;
@@ -932,11 +1176,15 @@
   function renderUndoToast() {
     const toast = document.getElementById('undoToast');
     const toastTitle = document.getElementById('undoToastTitle');
+    const toastLabel = document.getElementById('undoToastLabel');
     if (!toast || !toastTitle) return;
 
     if (state.undoQueue.length > 0) {
       const current = state.undoQueue[0];
       toastTitle.textContent = current.task.title;
+      if (toastLabel) {
+        toastLabel.textContent = current.type === 'complete' ? 'Moved to History' : 'Task Deleted';
+      }
       toast.classList.add('is-visible');
     } else {
       toast.classList.remove('is-visible');
@@ -952,36 +1200,49 @@
 
     taskListEl.addEventListener('click', e => {
       const target = e.target;
-      const li = target.closest('.task-item');
-      if (!li) return;
-      const taskId = li.getAttribute('data-id');
+      const itemEl = target.closest('.task-item, .history-item');
+      if (!itemEl) return;
+      const taskId = itemEl.getAttribute('data-id');
+      if (!taskId) return;
 
-      // 1. Toggle completion
+      // 1. Toggle completion on active task (200ms ink strike + slide out)
       if (target.closest('[data-action="toggle"]')) {
-        toggleTaskCompletion(taskId);
+        completeTask(taskId);
         return;
       }
 
-      // 2. Start inline edit
+      // 2. Restore task from history
+      if (target.closest('[data-action="restore"]')) {
+        restoreTaskFromHistory(taskId);
+        return;
+      }
+
+      // 3. Delete from history (with 4 second undo)
+      if (target.closest('[data-action="delete-history"]')) {
+        deleteTask(taskId);
+        return;
+      }
+
+      // 4. Start inline edit
       if (target.closest('[data-action="edit"]')) {
         state.editingTaskId = taskId;
         render();
         return;
       }
 
-      // 3. Delete task (open confirmation dialog)
+      // 5. Delete active task (open confirmation dialog)
       if (target.closest('[data-action="delete"]')) {
         openDeleteDialog(taskId);
         return;
       }
 
-      // 4. Move up in manual sort
+      // 6. Move up in manual sort
       if (target.closest('[data-action="move-up"]')) {
         moveTaskManual(taskId, -1);
         return;
       }
 
-      // 5. Move down in manual sort
+      // 7. Move down in manual sort
       if (target.closest('[data-action="move-down"]')) {
         moveTaskManual(taskId, 1);
         return;
@@ -1216,6 +1477,41 @@
           const tab = btn.getAttribute('data-tab');
           if (tab && tab !== state.filter) {
             state.filter = tab;
+            btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+            render();
+          }
+        }
+      });
+
+      // Arrow navigation for tablist semantics (WCAG 2.2 AA)
+      tabList.addEventListener('keydown', e => {
+        const tabs = Array.from(tabList.querySelectorAll('.tab-btn'));
+        const activeTab = document.activeElement;
+        const currentIndex = tabs.indexOf(activeTab);
+        if (currentIndex === -1) return;
+
+        let nextIndex = -1;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          nextIndex = (currentIndex + 1) % tabs.length;
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+        } else if (e.key === 'Home') {
+          e.preventDefault();
+          nextIndex = 0;
+        } else if (e.key === 'End') {
+          e.preventDefault();
+          nextIndex = tabs.length - 1;
+        }
+
+        if (nextIndex !== -1) {
+          const targetTab = tabs[nextIndex];
+          targetTab.focus();
+          const tab = targetTab.getAttribute('data-tab');
+          if (tab && tab !== state.filter) {
+            state.filter = tab;
+            targetTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
             render();
           }
         }
@@ -1290,11 +1586,11 @@
   }
 
   function setupModals() {
-    // 1. Clear Completed Dialog
-    const clearDialog = document.getElementById('clearCompletedDialogOverlay');
-    const openClearBtn = document.getElementById('openClearCompletedModalBtn');
-    const cancelClearBtn = document.getElementById('cancelClearCompletedBtn');
-    const confirmClearBtn = document.getElementById('confirmClearCompletedBtn');
+    // 1. Clear History Dialog
+    const clearDialog = document.getElementById('clearHistoryDialogOverlay');
+    const openClearBtn = document.getElementById('openClearHistoryModalBtn');
+    const cancelClearBtn = document.getElementById('cancelClearHistoryBtn');
+    const confirmClearBtn = document.getElementById('confirmClearHistoryBtn');
 
     if (openClearBtn) {
       openClearBtn.addEventListener('click', () => openModal(clearDialog));
@@ -1304,7 +1600,7 @@
     }
     if (confirmClearBtn) {
       confirmClearBtn.addEventListener('click', () => {
-        clearCompletedTasks();
+        clearHistoryTasks();
         closeModal(clearDialog);
       });
     }
@@ -1643,6 +1939,7 @@
     setupFilterControls();
     setupModals();
     setupKeyboardShortcuts();
+    setupStorageSync();
     scheduleMidnightRefresh();
     setupVisibilityChange();
 
@@ -1652,6 +1949,32 @@
 
     // Window resize listener to keep sliding tab indicator aligned
     window.addEventListener('resize', updateTabsIndicator);
+  }
+
+  function setupStorageSync() {
+    window.addEventListener('storage', e => {
+      if (e.key === STORAGE_KEY_TASKS) {
+        try {
+          const raw = e.newValue;
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              state.tasks = parsed.map(validateTaskRecord).filter(Boolean);
+              render();
+            }
+          }
+        } catch (err) {}
+      } else if (e.key === STORAGE_KEY_PREFS) {
+        try {
+          if (e.newValue) {
+            const parsed = JSON.parse(e.newValue);
+            if (parsed && parsed.theme) {
+              applyTheme(parsed.theme);
+            }
+          }
+        } catch (err) {}
+      }
+    });
   }
 
   // Boot on DOM ready

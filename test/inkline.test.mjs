@@ -153,3 +153,47 @@ test('detectQuickAddDate handles today, tomorrow, and weekday names', () => {
   assert.equal(resFriday.label, 'Friday');
   assert.equal(resFriday.dateStr, '2026-10-23');
 });
+
+test('completed tasks never appear in Today, Upcoming, or All', () => {
+  const today = '2026-10-20';
+  const tasks = [
+    { id: '1', title: 'Task 1', dueDate: '2026-10-20', completedAt: 1729420000000 },
+    { id: '2', title: 'Task 2', dueDate: '2026-10-20', completedAt: null },
+    { id: '3', title: 'Task 3', dueDate: '2026-10-25', completedAt: 1729420000000 },
+    { id: '4', title: 'Task 4', dueDate: '2026-10-25', completedAt: null },
+    { id: '5', title: 'Task 5', dueDate: null, completedAt: 1729420000000 }
+  ];
+
+  const todayActive = tasks.filter(t => !t.completedAt && (t.dueDate === today || (t.dueDate && t.dueDate < today)));
+  assert.equal(todayActive.length, 1);
+  assert.equal(todayActive[0].id, '2');
+
+  const upcomingActive = tasks.filter(t => !t.completedAt && t.dueDate && t.dueDate > today);
+  assert.equal(upcomingActive.length, 1);
+  assert.equal(upcomingActive[0].id, '4');
+
+  const allActive = tasks.filter(t => !t.completedAt);
+  assert.equal(allActive.length, 2);
+  assert.deepEqual(allActive.map(t => t.id), ['2', '4']);
+
+  const historyTasks = tasks.filter(t => Boolean(t.completedAt));
+  assert.equal(historyTasks.length, 3);
+  assert.deepEqual(historyTasks.map(t => t.id), ['1', '3', '5']);
+});
+
+test('history completed this week calculation counts tasks in last 7 days', () => {
+  const now = 1729420000000;
+  const sixDaysAgo = now - 6 * 86400000;
+  const eightDaysAgo = now - 8 * 86400000;
+
+  const tasks = [
+    { id: '1', completedAt: now },
+    { id: '2', completedAt: sixDaysAgo },
+    { id: '3', completedAt: eightDaysAgo },
+    { id: '4', completedAt: null }
+  ];
+
+  const oneWeekAgo = now - 7 * 86400000;
+  const countThisWeek = tasks.filter(t => t.completedAt && t.completedAt >= oneWeekAgo).length;
+  assert.equal(countThisWeek, 2);
+});

@@ -74,6 +74,14 @@
       </h1>
 
       <div class="header-controls">
+        <!-- Settings Modal Trigger (Gear Icon) -->
+        <button type="button" id="settingsBtn" class="icon-btn" aria-label="Settings" title="Settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+
         <!-- Theme Selector (Radio Group) -->
         <fieldset class="theme-picker" role="radiogroup" aria-label="Theme preference">
           <legend class="sr-only">Choose color theme</legend>
@@ -99,16 +107,6 @@
             </label>
           </div>
         </fieldset>
-
-        <!-- Shortcuts Help Modal Trigger -->
-        <button type="button" id="shortcutsBtn" class="icon-btn" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-        </button>
-
-        <!-- Backup & Restore Modal Trigger -->
-        <button type="button" id="backupModalBtn" class="icon-btn" aria-label="Export or import data" title="Export or import data">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-        </button>
       </div>
     </header>
 
@@ -184,25 +182,30 @@
     <!-- Navigation Tabs & Filter Bar (Signature Detail 6) -->
     <section class="tabs-and-controls" aria-label="Task views and search">
       <nav class="tabs-wrapper" aria-label="Task lists">
-        <ul class="tabs-list" role="tablist">
+        <ul class="tabs-list" role="tablist" aria-label="Task lists">
           <li role="presentation">
-            <button role="tab" id="tab-today" class="tab-btn" aria-selected="true" aria-controls="taskCanvas" data-tab="today">
+            <button role="tab" id="tab-today" class="tab-btn" aria-selected="true" tabindex="0" aria-controls="taskCanvas" data-tab="today">
               Today <span class="tab-count" id="count-today">(0)</span>
             </button>
           </li>
           <li role="presentation">
-            <button role="tab" id="tab-upcoming" class="tab-btn" aria-selected="false" aria-controls="taskCanvas" data-tab="upcoming">
+            <button role="tab" id="tab-upcoming" class="tab-btn" aria-selected="false" tabindex="-1" aria-controls="taskCanvas" data-tab="upcoming">
               Upcoming <span class="tab-count" id="count-upcoming">(0)</span>
             </button>
           </li>
           <li role="presentation">
-            <button role="tab" id="tab-all" class="tab-btn" aria-selected="false" aria-controls="taskCanvas" data-tab="all">
+            <button role="tab" id="tab-all" class="tab-btn" aria-selected="false" tabindex="-1" aria-controls="taskCanvas" data-tab="all">
               All <span class="tab-count" id="count-all">(0)</span>
             </button>
           </li>
           <li role="presentation">
-            <button role="tab" id="tab-done" class="tab-btn" aria-selected="false" aria-controls="taskCanvas" data-tab="done">
-              Done <span class="tab-count" id="count-done">(0)</span>
+            <button role="tab" id="tab-history" class="tab-btn" aria-selected="false" tabindex="-1" aria-controls="taskCanvas" data-tab="history">
+              History <span class="tab-count" id="count-history">(0)</span>
+            </button>
+          </li>
+          <li role="presentation">
+            <button role="tab" id="tab-focus" class="tab-btn" aria-selected="false" tabindex="-1" aria-controls="focusCanvas" data-tab="focus">
+              Focus
             </button>
           </li>
         </ul>
@@ -263,8 +266,8 @@
       <!-- Task Container Footer -->
       <div id="tasksFooterBar" class="tasks-footer-bar">
         <span id="footerCountText" class="footer-count-text">0 tasks</span>
-        <button type="button" id="openClearCompletedModalBtn" class="btn btn-tertiary btn-sm">
-          Clear completed
+        <button type="button" id="openClearHistoryModalBtn" class="btn btn-tertiary btn-sm" style="display: none;">
+          Clear history
         </button>
       </div>
     </main>
@@ -284,7 +287,7 @@
   <!-- Undo Toast (Signature Detail 9) -->
   <div id="undoToast" class="undo-toast" role="status" aria-atomic="true">
     <div class="undo-toast-content">
-      <span class="undo-toast-label">Task Deleted</span>
+      <span id="undoToastLabel" class="undo-toast-label">Moved to History</span>
       <span id="undoToastTitle" class="undo-toast-title"></span>
     </div>
     <button type="button" id="undoToastBtn" class="undo-toast-btn">
@@ -292,14 +295,14 @@
     </button>
   </div>
 
-  <!-- Clear Completed Confirmation Dialog (Accessible Modal) -->
-  <div id="clearCompletedDialogOverlay" class="dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="clearDialogHeading" aria-describedby="clearDialogDesc">
+  <!-- Clear History Confirmation Dialog (Accessible Modal) -->
+  <div id="clearHistoryDialogOverlay" class="dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="clearHistoryHeading" aria-describedby="clearHistoryDesc">
     <div class="dialog-card">
-      <h3 id="clearDialogHeading" class="dialog-heading">Clear completed tasks?</h3>
-      <p id="clearDialogDesc" class="dialog-body">This will permanently remove all completed tasks from your notebook. Pending tasks will not be touched.</p>
+      <h3 id="clearHistoryHeading" class="dialog-heading">Clear history?</h3>
+      <p id="clearHistoryDesc" class="dialog-body">This will permanently remove all completed tasks from your notebook. Active tasks will not be touched.</p>
       <div class="dialog-actions">
-        <button type="button" id="cancelClearCompletedBtn" class="btn btn-secondary">Cancel</button>
-        <button type="button" id="confirmClearCompletedBtn" class="btn btn-primary">Clear Completed</button>
+        <button type="button" id="cancelClearHistoryBtn" class="btn btn-secondary">Cancel</button>
+        <button type="button" id="confirmClearHistoryBtn" class="btn btn-primary">Clear History</button>
       </div>
     </div>
   </div>

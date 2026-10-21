@@ -936,6 +936,131 @@ body {
   clip-path: inset(0 0 0 0);
 }
 
+/* Completion Animation & Slide-out (Feature 1) */
+.task-item.is-completing .checkbox-path {
+  stroke-dashoffset: 0;
+}
+
+.task-item.is-completing .checkbox-btn {
+  border-color: var(--accent);
+}
+
+.task-item.is-completing .task-title {
+  color: var(--text-secondary);
+}
+
+.task-item.is-completing .task-title::after {
+  clip-path: inset(0 0 0 0);
+}
+
+.task-item.is-sliding-out {
+  transform: translateX(36px);
+  opacity: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  border-bottom-color: transparent;
+  overflow: hidden;
+  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1), opacity 180ms ease, max-height 180ms ease, padding 180ms ease, margin 180ms ease;
+}
+
+/* History Day Grouping & Items (Feature 1) */
+.history-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.history-summary {
+  padding: var(--space-3) var(--space-4);
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  background-color: var(--bg-paper);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.history-day-group {
+  border-bottom: 1px solid var(--border);
+}
+
+.history-day-group:last-child {
+  border-bottom: none;
+}
+
+.history-day-heading {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: var(--space-2) var(--space-4);
+  background-color: var(--bg-paper);
+  border-bottom: 1px dashed var(--border);
+}
+
+.history-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background-color: transparent;
+  transition: background-color var(--transition-fast);
+}
+
+.history-item:last-child {
+  border-bottom: none;
+}
+
+.history-item:hover {
+  background-color: var(--accent-subtle);
+}
+
+.history-item .task-title {
+  color: var(--text-secondary);
+  text-decoration: line-through;
+  text-decoration-color: var(--border);
+}
+
+.history-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.btn-text {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.btn-text:hover {
+  color: var(--ink);
+  background-color: var(--bg-paper);
+}
+
+.btn-text.delete-text:hover {
+  color: var(--accent);
+}
+
 /* Field-note Metadata (Signature Detail 5) */
 .task-meta {
   font-size: var(--font-size-meta);
