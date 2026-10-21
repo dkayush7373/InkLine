@@ -83,6 +83,87 @@
   }
 }
 
+/* Accent Palettes - Light / Default */
+:root, [data-accent="red"] {
+  --accent: #B8412B;
+  --accent-btn-text: #FFFFFF;
+  --accent-subtle: rgba(184, 65, 43, 0.08);
+  --margin-line: rgba(184, 65, 43, 0.12);
+}
+[data-accent="teal"] {
+  --accent: #0D6E6E;
+  --accent-btn-text: #FFFFFF;
+  --accent-subtle: rgba(13, 110, 110, 0.08);
+  --margin-line: rgba(13, 110, 110, 0.12);
+}
+[data-accent="blue"] {
+  --accent: #1F4E8C;
+  --accent-btn-text: #FFFFFF;
+  --accent-subtle: rgba(31, 78, 140, 0.08);
+  --margin-line: rgba(31, 78, 140, 0.12);
+}
+[data-accent="forest"] {
+  --accent: #2F6B3A;
+  --accent-btn-text: #FFFFFF;
+  --accent-subtle: rgba(47, 107, 58, 0.08);
+  --margin-line: rgba(47, 107, 58, 0.12);
+}
+
+/* Accent Palettes - Explicit Dark */
+[data-theme="dark"], [data-theme="dark"][data-accent="red"] {
+  --accent: #F08A6C;
+  --accent-btn-text: #141414;
+  --accent-subtle: rgba(240, 138, 108, 0.12);
+  --margin-line: rgba(240, 138, 108, 0.15);
+}
+[data-theme="dark"][data-accent="teal"] {
+  --accent: #4DB8B8;
+  --accent-btn-text: #141414;
+  --accent-subtle: rgba(77, 184, 184, 0.12);
+  --margin-line: rgba(77, 184, 184, 0.15);
+}
+[data-theme="dark"][data-accent="blue"] {
+  --accent: #7FB0F0;
+  --accent-btn-text: #141414;
+  --accent-subtle: rgba(127, 176, 240, 0.12);
+  --margin-line: rgba(127, 176, 240, 0.15);
+}
+[data-theme="dark"][data-accent="forest"] {
+  --accent: #7CC48A;
+  --accent-btn-text: #141414;
+  --accent-subtle: rgba(124, 196, 138, 0.12);
+  --margin-line: rgba(124, 196, 138, 0.15);
+}
+
+/* Accent Palettes - System Dark */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]),
+  :root:not([data-theme="light"])[data-accent="red"] {
+    --accent: #F08A6C;
+    --accent-btn-text: #141414;
+    --accent-subtle: rgba(240, 138, 108, 0.12);
+    --margin-line: rgba(240, 138, 108, 0.15);
+  }
+  :root:not([data-theme="light"])[data-accent="teal"] {
+    --accent: #4DB8B8;
+    --accent-btn-text: #141414;
+    --accent-subtle: rgba(77, 184, 184, 0.12);
+    --margin-line: rgba(77, 184, 184, 0.15);
+  }
+  :root:not([data-theme="light"])[data-accent="blue"] {
+    --accent: #7FB0F0;
+    --accent-btn-text: #141414;
+    --accent-subtle: rgba(127, 176, 240, 0.12);
+    --margin-line: rgba(127, 176, 240, 0.15);
+  }
+  :root:not([data-theme="light"])[data-accent="forest"] {
+    --accent: #7CC48A;
+    --accent-btn-text: #141414;
+    --accent-subtle: rgba(124, 196, 138, 0.12);
+    --margin-line: rgba(124, 196, 138, 0.15);
+  }
+}
+
 /* ==========================================================================
    CSS Reset & Base
    ========================================================================== */
@@ -1771,4 +1852,146 @@ body {
   .sort-wrapper {
     justify-content: space-between;
   }
+}
+
+/* ==========================================================================
+   Settings Modal & Accent Swatches
+   ========================================================================== */
+.settings-card {
+  max-width: 540px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: var(--space-5);
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-section {
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-section:last-of-type {
+  border-bottom: none;
+}
+
+.settings-subheading {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-3);
+}
+
+.accent-radiogroup {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.accent-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-btn);
+  min-height: 44px;
+  background-color: var(--surface);
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+  user-select: none;
+}
+
+.accent-option:hover {
+  border-color: var(--ink);
+}
+
+.accent-option input:focus-visible ~ .accent-option-label {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.accent-option:has(input:checked) {
+  border-color: var(--accent);
+  background-color: var(--accent-subtle);
+}
+
+.accent-swatch-circle {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.accent-option input:checked ~ .accent-swatch-circle {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.accent-option-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+}
+
+.settings-help-text {
+  font-size: 13px;
+  color: var(--ink);
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.settings-note {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-3);
+  line-height: 1.4;
+}
+
+.settings-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.backup-actions-grid {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.import-file-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  margin: 0;
+}
+
+.form-feedback {
+  font-size: 12px;
+  margin-top: var(--space-2);
+  line-height: 1.4;
 }

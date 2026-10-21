@@ -38,6 +38,8 @@
     sortBy: 'created', // 'created' | 'due' | 'priority' | 'manual'
     prefs: {
       theme: 'system', // 'light' | 'dark' | 'system'
+      accent: 'red', // 'red' | 'teal' | 'blue' | 'forest'
+      remindersEnabled: true,
       collapsedSections: {}
     },
     quickAddDueDate: null,
@@ -45,6 +47,7 @@
     editingSubtaskId: null,
     openSubtasksTaskIds: new Set(),
     pendingDeleteTaskId: null,
+    pendingImportTasks: null,
     undoQueue: [], // array of { task, originalIndex, timerId }
     storageError: false,
     draggedTaskId: null,
@@ -273,6 +276,12 @@
         if (parsedPrefs && ['light', 'dark', 'system'].includes(parsedPrefs.theme)) {
           state.prefs.theme = parsedPrefs.theme;
         }
+        if (parsedPrefs && ['red', 'teal', 'blue', 'forest'].includes(parsedPrefs.accent)) {
+          state.prefs.accent = parsedPrefs.accent;
+        }
+        if (parsedPrefs && typeof parsedPrefs.remindersEnabled === 'boolean') {
+          state.prefs.remindersEnabled = parsedPrefs.remindersEnabled;
+        }
         if (parsedPrefs && typeof parsedPrefs.collapsedSections === 'object' && parsedPrefs.collapsedSections !== null) {
           state.prefs.collapsedSections = parsedPrefs.collapsedSections;
         }
@@ -281,8 +290,9 @@
       // Ignore prefs error
     }
 
-    // Apply loaded theme
+    // Apply loaded theme and accent
     applyTheme(state.prefs.theme);
+    applyAccent(state.prefs.accent);
 
     // 2. Load tasks
     let rawTasks = null;
@@ -412,6 +422,22 @@
       darkRadio.checked = theme === 'dark';
       systemRadio.checked = theme === 'system';
     }
+    savePrefsToStorage();
+  }
+
+  // ==========================================================================
+  // Accent Color Management
+  // ==========================================================================
+  function applyAccent(accentName) {
+    const valid = ['red', 'teal', 'blue', 'forest'];
+    const accent = valid.includes(accentName) ? accentName : 'red';
+    state.prefs.accent = accent;
+    document.documentElement.setAttribute('data-accent', accent);
+
+    const radios = document.querySelectorAll('input[name="accent-swatch"]');
+    radios.forEach(r => {
+      r.checked = (r.value === accent);
+    });
     savePrefsToStorage();
   }
 
@@ -2000,36 +2026,80 @@
       });
     }
 
-    // 3. Shortcuts Dialog
-    const shortcutsDialog = document.getElementById('shortcutsDialogOverlay');
-    const shortcutsBtn = document.getElementById('shortcutsBtn');
-    const closeShortcutsBtn = document.getElementById('closeShortcutsBtn');
+    // 3. Settings Dialog
+    const settingsDialog = document.getElementById('settingsDialogOverlay');
+    const settingsBtn = document.getElementById('settingsBtn');
+    const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+    const closeSettingsHeaderBtn = document.getElementById('closeSettingsHeaderBtn');
+    const remindersCheckbox = document.getElementById('settingRemindersEnabled');
+    const testNotificationBtn = document.getElementById('sendTestNotificationBtn');
+    const settingsExportBtn = document.getElementById('settingsExportBtn');
+    const settingsImportFileInput = document.getElementById('settingsImportFileInput');
+    const settingsImportFeedback = document.getElementById('settingsImportFeedback');
 
-    if (shortcutsBtn) {
-      shortcutsBtn.addEventListener('click', () => openModal(shortcutsDialog));
-    }
-    if (closeShortcutsBtn) {
-      closeShortcutsBtn.addEventListener('click', () => closeModal(shortcutsDialog));
-    }
-
-    // 4. Backup & Restore Dialog
-    const backupDialog = document.getElementById('backupDialogOverlay');
-    const backupBtn = document.getElementById('backupModalBtn');
-    const closeBackupBtn = document.getElementById('closeBackupBtn');
-    const exportBtn = document.getElementById('exportTasksBtn');
-    const importFileInput = document.getElementById('importTasksFileInput');
-    const importFeedback = document.getElementById('importFeedback');
-
-    if (backupBtn) {
-      backupBtn.addEventListener('click', () => openModal(backupDialog));
-    }
-    if (closeBackupBtn) {
-      closeBackupBtn.addEventListener('click', () => closeModal(backupDialog));
+    function updateNotificationPermissionStatus() {
+      const statusEl = document.getElementById('notificationPermissionStatus');
+      if (!statusEl) return;
+      if (!('Notification' in window)) {
+        statusEl.textContent = 'Permission: Notifications not supported in this browser';
+      } else if (Notification.permission === 'granted') {
+        statusEl.textContent = 'Permission: Notifications allowed';
+      } else if (Notification.permission === 'denied') {
+        statusEl.textContent = 'Permission: Notifications blocked in browser settings';
+      } else {
+        statusEl.textContent = 'Permission: Not requested yet';
+      }
     }
 
-    // Export tasks as JSON file download
-    if (exportBtn) {
-      exportBtn.addEventListener('click', () => {
+    if (settingsBtn) {
+      settingsBtn.addEventListener('click', () => {
+        applyAccent(state.prefs.accent);
+        if (remindersCheckbox) {
+          remindersCheckbox.checked = state.prefs.remindersEnabled !== false;
+        }
+        updateNotificationPermissionStatus();
+        if (settingsImportFeedback) settingsImportFeedback.style.display = 'none';
+        openModal(settingsDialog);
+      });
+    }
+
+    if (closeSettingsBtn) {
+      closeSettingsBtn.addEventListener('click', () => closeModal(settingsDialog));
+    }
+    if (closeSettingsHeaderBtn) {
+      closeSettingsHeaderBtn.addEventListener('click', () => closeModal(settingsDialog));
+    }
+
+    // Accent radio buttons
+    const accentRadios = document.querySelectorAll('input[name="accent-swatch"]');
+    accentRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        if (radio.checked) {
+          applyAccent(radio.value);
+          announcePolite(`Accent color set to ${radio.value}`);
+        }
+      });
+    });
+
+    // Reminders toggle
+    if (remindersCheckbox) {
+      remindersCheckbox.addEventListener('change', () => {
+        state.prefs.remindersEnabled = remindersCheckbox.checked;
+        savePrefsToStorage();
+        announcePolite(remindersCheckbox.checked ? 'Reminders enabled' : 'Reminders disabled');
+      });
+    }
+
+    // Test notification button
+    if (testNotificationBtn) {
+      testNotificationBtn.addEventListener('click', () => {
+        sendTestNotification();
+      });
+    }
+
+    // Export tasks as JSON
+    if (settingsExportBtn) {
+      settingsExportBtn.addEventListener('click', () => {
         const json = JSON.stringify(state.tasks, null, 2);
         const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -2044,9 +2114,14 @@
       });
     }
 
-    // Import tasks from JSON file
-    if (importFileInput) {
-      importFileInput.addEventListener('change', e => {
+    // 4. Confirm Import Dialog & file processing
+    const confirmImportDialog = document.getElementById('confirmImportDialogOverlay');
+    const confirmImportDesc = document.getElementById('confirmImportDesc');
+    const cancelConfirmImportBtn = document.getElementById('cancelConfirmImportBtn');
+    const confirmReplaceImportBtn = document.getElementById('confirmReplaceImportBtn');
+
+    if (settingsImportFileInput) {
+      settingsImportFileInput.addEventListener('change', e => {
         const file = e.target.files[0];
         if (!file) return;
 
@@ -2055,68 +2130,103 @@
           try {
             const parsed = JSON.parse(ev.target.result);
             if (!Array.isArray(parsed)) {
-              showImportError('Invalid backup file. Root must be a list of tasks.');
+              if (settingsImportFeedback) {
+                settingsImportFeedback.style.display = 'block';
+                settingsImportFeedback.style.color = 'var(--accent)';
+                settingsImportFeedback.textContent = 'Invalid backup file. Root must be a list of tasks.';
+              }
               return;
             }
 
             const validImported = [];
-            let skippedCount = 0;
+            let badCount = 0;
 
             parsed.forEach(item => {
               const validated = validateTaskRecord(item);
               if (validated) {
-                // Check if id already exists, generate new if needed
-                if (state.tasks.some(t => t.id === validated.id)) {
-                  validated.id = generateId();
-                }
                 validImported.push(validated);
               } else {
-                skippedCount++;
+                badCount++;
               }
             });
 
             if (validImported.length === 0) {
-              showImportError('No valid task records found in file.');
+              if (settingsImportFeedback) {
+                settingsImportFeedback.style.display = 'block';
+                settingsImportFeedback.style.color = 'var(--accent)';
+                settingsImportFeedback.textContent = 'No valid task records found in file.';
+              }
               return;
             }
 
-            // Append imported tasks without silent overwrite
-            state.tasks = state.tasks.concat(validImported);
-            saveToStorage();
-            render();
-
-            showImportSuccess(`Restored ${validImported.length} tasks.${skippedCount > 0 ? ` (${skippedCount} bad records skipped)` : ''}`);
-            announcePolite(`Imported ${validImported.length} tasks`);
+            state.pendingImportTasks = validImported;
+            if (confirmImportDesc) {
+              confirmImportDesc.textContent = `This will replace your current tasks with ${validImported.length} task${validImported.length === 1 ? '' : 's'} from the backup.${badCount > 0 ? ` (${badCount} bad records skipped)` : ''}`;
+            }
+            openModal(confirmImportDialog);
           } catch (err) {
-            showImportError('Could not parse JSON file.');
+            if (settingsImportFeedback) {
+              settingsImportFeedback.style.display = 'block';
+              settingsImportFeedback.style.color = 'var(--accent)';
+              settingsImportFeedback.textContent = 'Could not parse JSON file.';
+            }
+          } finally {
+            e.target.value = '';
           }
         };
         reader.readAsText(file);
       });
     }
 
-    function showImportError(msg) {
-      if (importFeedback) {
-        importFeedback.style.display = 'block';
-        importFeedback.style.color = 'var(--accent)';
-        importFeedback.textContent = msg;
-      }
+    if (cancelConfirmImportBtn) {
+      cancelConfirmImportBtn.addEventListener('click', () => {
+        state.pendingImportTasks = null;
+        closeModal(confirmImportDialog);
+      });
     }
 
-    function showImportSuccess(msg) {
-      if (importFeedback) {
-        importFeedback.style.display = 'block';
-        importFeedback.style.color = 'var(--ink)';
-        importFeedback.textContent = msg;
-      }
+    if (confirmReplaceImportBtn) {
+      confirmReplaceImportBtn.addEventListener('click', () => {
+        if (state.pendingImportTasks && state.pendingImportTasks.length > 0) {
+          state.tasks = state.pendingImportTasks;
+          state.pendingImportTasks = null;
+          saveToStorage();
+          render();
+          announcePolite(`Restored ${state.tasks.length} tasks`);
+        }
+        closeModal(confirmImportDialog);
+        closeModal(settingsDialog);
+      });
     }
 
-    // Close on Escape or click outside
+    // Accessible Focus Trap and Escape Handler
     document.addEventListener('keydown', e => {
+      const openDialog = document.querySelector('.dialog-overlay.is-open');
+      if (!openDialog) return;
+
       if (e.key === 'Escape') {
-        const openDialog = document.querySelector('.dialog-overlay.is-open');
-        if (openDialog) {
-          closeModal(openDialog);
+        e.preventDefault();
+        closeModal(openDialog);
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        const focusable = Array.from(openDialog.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter(el => el.offsetParent !== null);
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first || !openDialog.contains(document.activeElement)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last || !openDialog.contains(document.activeElement)) {
+            e.preventDefault();
+            first.focus();
+          }
         }
       }
     });
@@ -2128,6 +2238,45 @@
         }
       });
     });
+  }
+
+  function sendTestNotification() {
+    if (!('Notification' in window)) {
+      announcePolite('Notifications are not supported in this browser.');
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      try {
+        new Notification('Inkline', {
+          body: 'Test notification from Inkline.',
+          icon: 'favicon.png'
+        });
+        announcePolite('Test notification sent');
+      } catch (e) {
+        announcePolite('Test notification failed to send.');
+      }
+    } else if (Notification.permission === 'denied') {
+      announcePolite('Notifications are blocked in browser settings.');
+    } else {
+      Notification.requestPermission().then(permission => {
+        const statusEl = document.getElementById('notificationPermissionStatus');
+        if (statusEl) {
+          statusEl.textContent = permission === 'granted' ? 'Permission: Notifications allowed' : 'Permission: Notifications blocked';
+        }
+        if (permission === 'granted') {
+          try {
+            new Notification('Inkline', {
+              body: 'Test notification from Inkline.',
+              icon: 'favicon.png'
+            });
+            announcePolite('Test notification sent');
+          } catch (e) {
+            announcePolite('Test notification failed to send.');
+          }
+        }
+      });
+    }
   }
 
   function openDeleteDialog(taskId) {
@@ -2155,10 +2304,13 @@
         e.preventDefault();
         const searchInput = document.getElementById('taskSearchInput');
         if (searchInput) searchInput.focus();
-      } else if (e.key === '?') {
-        e.preventDefault();
-        const shortcutsDialog = document.getElementById('shortcutsDialogOverlay');
-        openModal(shortcutsDialog);
+      } else if (e.code === 'Space' || e.key === ' ') {
+        if (state.filter === 'focus') {
+          e.preventDefault();
+          if (typeof toggleFocusTimer === 'function') {
+            toggleFocusTimer();
+          }
+        }
       }
     });
   }
@@ -2342,8 +2494,16 @@
         try {
           if (e.newValue) {
             const parsed = JSON.parse(e.newValue);
-            if (parsed && parsed.theme) {
-              applyTheme(parsed.theme);
+            if (parsed) {
+              if (parsed.theme) applyTheme(parsed.theme);
+              if (parsed.accent) applyAccent(parsed.accent);
+              if (typeof parsed.remindersEnabled === 'boolean') {
+                state.prefs.remindersEnabled = parsed.remindersEnabled;
+              }
+              if (parsed.collapsedSections) {
+                state.prefs.collapsedSections = parsed.collapsedSections;
+                render();
+              }
             }
           }
         } catch (err) {}

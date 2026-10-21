@@ -27,14 +27,19 @@
       try {
         var raw = localStorage.getItem('inkline.prefs.v1');
         var theme = 'system';
+        var accent = 'red';
         if (raw) {
           var prefs = JSON.parse(raw);
           if (prefs && prefs.theme) theme = prefs.theme;
+          if (prefs && prefs.accent) accent = prefs.accent;
         }
         if (theme === 'light' || theme === 'dark') {
           document.documentElement.setAttribute('data-theme', theme);
         } else {
           document.documentElement.removeAttribute('data-theme');
+        }
+        if (accent && ['red', 'teal', 'blue', 'forest'].indexOf(accent) !== -1) {
+          document.documentElement.setAttribute('data-accent', accent);
         }
       } catch (e) {
         // Fallback to system preference safely
@@ -319,58 +324,119 @@
     </div>
   </div>
 
-  <!-- Keyboard Shortcuts Dialog -->
-  <div id="shortcutsDialogOverlay" class="dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="shortcutsHeading">
-    <div class="dialog-card">
-      <h3 id="shortcutsHeading" class="dialog-heading">Keyboard Shortcuts</h3>
-      <table class="shortcuts-table">
-        <tbody>
-          <tr>
-            <td><kbd>N</kbd></td>
-            <td>Focus new task input</td>
-          </tr>
-          <tr>
-            <td><kbd>/</kbd></td>
-            <td>Focus search input</td>
-          </tr>
-          <tr>
-            <td><kbd>?</kbd></td>
-            <td>Show keyboard shortcuts</td>
-          </tr>
-          <tr>
-            <td><kbd>Esc</kbd></td>
-            <td>Close dialogs or cancel inline edit</td>
-          </tr>
-          <tr>
-            <td><kbd>Enter</kbd></td>
-            <td>Save task or inline edit</td>
-          </tr>
-        </tbody>
-      </table>
+  <!-- Settings Dialog (Accessible Modal) -->
+  <div id="settingsDialogOverlay" class="dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="settingsHeading">
+    <div class="dialog-card settings-card">
+      <div class="settings-header">
+        <h3 id="settingsHeading" class="dialog-heading">Settings</h3>
+        <button type="button" id="closeSettingsHeaderBtn" class="icon-btn" aria-label="Close settings">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <!-- 1. Accent Color -->
+      <section class="settings-section">
+        <h4 class="settings-subheading">Accent color</h4>
+        <fieldset class="accent-radiogroup" role="radiogroup" aria-label="Accent color">
+          <legend class="sr-only">Choose an accent color</legend>
+          <label class="accent-option" for="accentRed">
+            <input type="radio" name="accent-swatch" value="red" id="accentRed" class="sr-only">
+            <span class="accent-swatch-circle" style="background-color: #B8412B;"></span>
+            <span class="accent-option-label">Red pencil</span>
+          </label>
+          <label class="accent-option" for="accentTeal">
+            <input type="radio" name="accent-swatch" value="teal" id="accentTeal" class="sr-only">
+            <span class="accent-swatch-circle" style="background-color: #0D6E6E;"></span>
+            <span class="accent-option-label">Teal</span>
+          </label>
+          <label class="accent-option" for="accentBlue">
+            <input type="radio" name="accent-swatch" value="blue" id="accentBlue" class="sr-only">
+            <span class="accent-swatch-circle" style="background-color: #1F4E8C;"></span>
+            <span class="accent-option-label">Ink blue</span>
+          </label>
+          <label class="accent-option" for="accentForest">
+            <input type="radio" name="accent-swatch" value="forest" id="accentForest" class="sr-only">
+            <span class="accent-swatch-circle" style="background-color: #2F6B3A;"></span>
+            <span class="accent-option-label">Forest</span>
+          </label>
+        </fieldset>
+      </section>
+
+      <!-- 2. Reminders -->
+      <section class="settings-section">
+        <h4 class="settings-subheading">Reminders</h4>
+        <div class="settings-row">
+          <label class="checkbox-label" for="settingRemindersEnabled">
+            <input type="checkbox" id="settingRemindersEnabled" class="sr-only custom-checkbox-input">
+            <span class="custom-checkbox-box" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"></path></svg>
+            </span>
+            <span>Enable reminders</span>
+          </label>
+        </div>
+        <p class="settings-help-text" id="notificationPermissionStatus">Permission: Checking...</p>
+        <p class="settings-note">Reminders work only while Inkline is open in a browser.</p>
+        <div class="settings-actions">
+          <button type="button" id="sendTestNotificationBtn" class="btn btn-secondary btn-sm">Send test notification</button>
+        </div>
+      </section>
+
+      <!-- 3. Backup & Restore -->
+      <section class="settings-section">
+        <h4 class="settings-subheading">Backup & restore</h4>
+        <div class="backup-actions-grid">
+          <button type="button" id="settingsExportBtn" class="btn btn-secondary">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Export JSON
+          </button>
+          <label class="btn btn-secondary import-file-label" for="settingsImportFileInput">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            Import JSON
+            <input type="file" id="settingsImportFileInput" accept=".json,application/json" class="sr-only">
+          </label>
+        </div>
+        <div id="settingsImportFeedback" class="form-feedback" role="status" style="display: none;"></div>
+      </section>
+
+      <!-- 4. Keyboard Shortcuts -->
+      <section class="settings-section">
+        <h4 class="settings-subheading">Keyboard shortcuts</h4>
+        <table class="shortcuts-table">
+          <tbody>
+            <tr>
+              <td><kbd>N</kbd></td>
+              <td>Focus new task input</td>
+            </tr>
+            <tr>
+              <td><kbd>/</kbd></td>
+              <td>Focus search input</td>
+            </tr>
+            <tr>
+              <td><kbd>Space</kbd></td>
+              <td>Toggle timer (on Focus tab)</td>
+            </tr>
+            <tr>
+              <td><kbd>Esc</kbd></td>
+              <td>Close dialogs or cancel inline edit</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
       <div class="dialog-actions">
-        <button type="button" id="closeShortcutsBtn" class="btn btn-secondary">Close</button>
+        <button type="button" id="closeSettingsBtn" class="btn btn-secondary">Close</button>
       </div>
     </div>
   </div>
 
-  <!-- Backup & Restore Dialog (JSON Export / Import) -->
-  <div id="backupDialogOverlay" class="dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="backupHeading">
+  <!-- Confirm Import Replacement Dialog -->
+  <div id="confirmImportDialogOverlay" class="dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="confirmImportHeading" aria-describedby="confirmImportDesc">
     <div class="dialog-card">
-      <h3 id="backupHeading" class="dialog-heading">Backup & Restore</h3>
-      <p class="dialog-body">Export your tasks as a JSON file or restore from a previously exported backup.</p>
-      <div class="form-field">
-        <button type="button" id="exportTasksBtn" class="btn btn-secondary">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-          Export Tasks (JSON)
-        </button>
-      </div>
-      <div class="form-field" style="margin-top: var(--space-3);">
-        <label for="importTasksFileInput">Restore Tasks from JSON</label>
-        <input type="file" id="importTasksFileInput" accept=".json,application/json" class="text-input" style="padding-top: 8px;">
-      </div>
-      <div id="importFeedback" class="form-error" role="status" style="display:none; color: var(--ink);"></div>
+      <h3 id="confirmImportHeading" class="dialog-heading">Replace notebook tasks?</h3>
+      <p id="confirmImportDesc" class="dialog-body">This will replace your current tasks with records from the backup file.</p>
       <div class="dialog-actions">
-        <button type="button" id="closeBackupBtn" class="btn btn-secondary">Close</button>
+        <button type="button" id="cancelConfirmImportBtn" class="btn btn-secondary">Cancel</button>
+        <button type="button" id="confirmReplaceImportBtn" class="btn btn-primary">Replace Tasks</button>
       </div>
     </div>
   </div>

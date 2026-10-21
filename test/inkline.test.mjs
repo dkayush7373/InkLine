@@ -326,3 +326,41 @@ test('subtasks: search query matches subtask titles', () => {
   assert.equal(filtered.length, 1);
   assert.equal(filtered[0].id, '1');
 });
+
+test('settings: accent validation strictly accepts red, teal, blue, forest with safe fallback', () => {
+  const sanitizeAccent = (name) => {
+    const valid = ['red', 'teal', 'blue', 'forest'];
+    return valid.includes(name) ? name : 'red';
+  };
+
+  assert.equal(sanitizeAccent('red'), 'red');
+  assert.equal(sanitizeAccent('teal'), 'teal');
+  assert.equal(sanitizeAccent('blue'), 'blue');
+  assert.equal(sanitizeAccent('forest'), 'forest');
+  assert.equal(sanitizeAccent('purple'), 'red'); // Forbidden purple rejected
+  assert.equal(sanitizeAccent('neon-green'), 'red');
+  assert.equal(sanitizeAccent(null), 'red');
+});
+
+test('backup & restore: JSON backup import validation skips bad records and keeps valid ones', () => {
+  const rawBackup = [
+    { id: 't1', title: 'Valid task 1', priority: 'high' },
+    { id: '', title: 'Invalid task no ID' },
+    { id: 't2', title: '   ' }, // empty title
+    null,
+    { id: 't3', title: 'Valid task 2', dueDate: '2026-10-25' }
+  ];
+
+  const valid = [];
+  let skipped = 0;
+  rawBackup.forEach(item => {
+    const res = validateTaskRecord(item);
+    if (res) valid.push(res);
+    else skipped++;
+  });
+
+  assert.equal(valid.length, 2);
+  assert.equal(skipped, 3);
+  assert.equal(valid[0].id, 't1');
+  assert.equal(valid[1].id, 't3');
+});
