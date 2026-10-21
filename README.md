@@ -58,11 +58,32 @@ This tests record validation, case-insensitive duplicate rejection, completion t
 
 ---
 
+## Features
+
+1. **Completion Fix & History**: 200ms ink strike-through, 4-second undo toast, and a dedicated History tab grouped by day with restore, search, and accessible clear history confirmation.
+2. **Priority Sections**: High, Medium, Low, No Priority collapsible sections remembering collapsed preferences, with intra-section drag & drop and keyboard reordering.
+3. **Subtasks**: Up to 20 subtasks per task, progress rules, inline checklist with checkmark animations, and cascading parent/subtask completion.
+4. **Settings & Accent Colors**: Accessible dialog with 4 WCAG AA tested accents (Red pencil, Teal, Ink blue, Forest), JSON backup export/import, and shortcuts guide.
+5. **Due Reminders**:
+   - *Honesty disclaimer*: Reminders work strictly while Inkline is open in a browser tab. Inkline does not operate push servers or claim background mobile notifications.
+   - 30-second checking, local time math, and missed reminder banners when reopening.
+6. **Swipe Gestures**: Touch-only swipe actions with text label reveal (`DONE`, `DELETE`, `RESTORE`) and safe 200ms spring-back.
+7. **Calm Focus Timer**:
+   - 60 fine ticks watch-face SVG ring, Fraunces tabular numerals, presets, custom durations, and session logging.
+   - End-timestamp engine resilient to sleep and background tabs.
+   - Layered Web Audio API bell alarm repeating every 3 seconds with 60-second safety limit.
+   - *Mobile note*: Mobile operating systems may suspend inactive background tabs. The alarm may sound once the tab is brought back to the foreground; on return, "Time is up" displays immediately.
+8. **Ambient Music & Sound Synthesis**:
+   - 10 generated ambient sounds (White, Pink, Brown noise, Rain, Ocean waves, Wind, Fan hum, Soft drone, Night crickets, Library room tone) with 300ms click-free crossfades.
+   - IndexedDB custom audio player supporting up to 10 files (max 15MB each, 60MB total), with playlist controls and CSS-only 3-bar animated equalizer.
+
+---
+
 ## Keyboard Shortcuts
 
 - `N`: Focus the "What needs doing?" task input
 - `/`: Focus the search bar
-- `?`: Open the keyboard shortcuts guide
+- `Space`: Toggle Focus timer (on Focus tab)
 - `Esc`: Close open dialogs or cancel inline task edit
 - `Enter`: Save new task or save inline edit
 

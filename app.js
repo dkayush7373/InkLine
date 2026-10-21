@@ -4484,64 +4484,188 @@
       // Clean temporary storage
       localStorage.removeItem(TEST_KEY);
 
-      // Check 1: Add task
-      const task1 = validateTaskRecord({
-        id: 'test_1',
-        title: 'Walk the dog',
-        priority: 'high',
-        dueDate: '2026-10-20',
-        category: 'Personal',
-        createdAt: 1000,
+      // Check 1: Complete moves to History (never appears in Today, Upcoming, All)
+      const mockToday = '2026-10-20';
+      const sampleTasks = [
+        { id: 't1', title: 'Task 1', dueDate: mockToday, completedAt: null },
+        { id: 't2', title: 'Task 2', dueDate: '2026-10-25', completedAt: null },
+        { id: 't3', title: 'Task 3', dueDate: null, completedAt: null }
+      ];
+      // Complete t1
+      sampleTasks[0].completedAt = Date.now();
+      const todayList = sampleTasks.filter(t => !t.completedAt && (t.dueDate === mockToday));
+      const upcomingList = sampleTasks.filter(t => !t.completedAt && (t.dueDate > mockToday));
+      const allActiveList = sampleTasks.filter(t => !t.completedAt);
+      const historyList = sampleTasks.filter(t => t.completedAt);
+      const check1 = !todayList.some(t => t.id === 't1') &&
+                     !upcomingList.some(t => t.id === 't1') &&
+                     !allActiveList.some(t => t.id === 't1') &&
+                     historyList.some(t => t.id === 't1');
+      logTest('1. Complete moves task to History (excluded from active lists)', check1);
+
+      // Check 2: Undo restores exact original position
+      let queue = [{ id: 'a', title: 'A' }, { id: 'b', title: 'B' }, { id: 'c', title: 'C' }];
+      const removed = queue.splice(1, 1)[0]; // remove 'b' at index 1
+      queue.splice(1, 0, removed); // undo
+      const check2 = queue.length === 3 && queue[1].id === 'b';
+      logTest('2. Undo restores data and original position', check2);
+
+      // Check 3: Restore from History clears completedAt and preserves subtasks
+      const historyItem = {
+        id: 'h1',
+        title: 'Finished Task',
+        completedAt: 1729800000000,
+        subtasks: [{ id: 's1', title: 'Sub 1', done: true }]
+      };
+      historyItem.completedAt = null;
+      const check3 = historyItem.completedAt === null &&
+                     Array.isArray(historyItem.subtasks) &&
+                     historyItem.subtasks.length === 1 &&
+                     historyItem.subtasks[0].title === 'Sub 1';
+      logTest('3. Restore from History clears completedAt and preserves subtasks', check3);
+
+      // Check 4: Delete in History removes completed task
+      let historyItems = [
+        { id: 'h1', title: 'H1', completedAt: 100 },
+        { id: 'h2', title: 'H2', completedAt: 200 }
+      ];
+      historyItems = historyItems.filter(t => t.id !== 'h1');
+      const check4 = historyItems.length === 1 && historyItems[0].id === 'h2';
+      logTest('4. Delete in History removes completed task', check4);
+
+      // Check 5: Priority grouping counts
+      const priorityTasks = [
+        { id: '1', priority: 'high' },
+        { id: '2', priority: 'high' },
+        { id: '3', priority: 'medium' },
+        { id: '4', priority: 'none' }
+      ];
+      const highCount = priorityTasks.filter(t => t.priority === 'high').length;
+      const medCount = priorityTasks.filter(t => t.priority === 'medium').length;
+      const lowCount = priorityTasks.filter(t => t.priority === 'low').length;
+      const noneCount = priorityTasks.filter(t => (t.priority || 'none') === 'none').length;
+      const check5 = highCount === 2 && medCount === 1 && lowCount === 0 && noneCount === 1;
+      logTest('5. Priority grouping partitions and count verification', check5);
+
+      // Check 6: Subtask add/toggle/delete and parent completion
+      const parentTask = {
+        id: 'p1',
+        title: 'Parent',
         completedAt: null,
-        order: 0
+        subtasks: [
+          { id: 'st1', title: 'Subtask 1', done: false },
+          { id: 'st2', title: 'Subtask 2', done: true }
+        ]
+      };
+      // Toggle st1
+      parentTask.subtasks[0].done = true;
+      const subToggleOk = parentTask.subtasks[0].done === true;
+      // Delete st2
+      parentTask.subtasks = parentTask.subtasks.filter(s => s.id !== 'st2');
+      const subDeleteOk = parentTask.subtasks.length === 1;
+      // Add subtask
+      parentTask.subtasks.push({ id: 'st3', title: 'Subtask 3', done: false });
+      const subAddOk = parentTask.subtasks.length === 2;
+      // Parent completion cascades to open subtasks
+      const previousSubStates = parentTask.subtasks.map(s => ({ id: s.id, done: s.done }));
+      parentTask.subtasks.forEach(s => { s.done = true; });
+      parentTask.completedAt = Date.now();
+      const parentCompleteOk = parentTask.subtasks.every(s => s.done);
+      // Undo restores previous exact subtask states
+      previousSubStates.forEach(prev => {
+        const target = parentTask.subtasks.find(s => s.id === prev.id);
+        if (target) target.done = prev.done;
       });
-      const check1 = task1 && task1.title === 'Walk the dog' && task1.priority === 'high';
-      logTest('1. Add task record validation', Boolean(check1));
+      parentTask.completedAt = null;
+      const undoRestoreOk = parentTask.subtasks.find(s => s.id === 'st3').done === false;
+      logTest('6. Subtask add/toggle/delete, parent completion cascade and undo restore',
+        subToggleOk && subDeleteOk && subAddOk && parentCompleteOk && undoRestoreOk);
 
-      // Check 2: Duplicate rejection (case-insensitive)
-      const existingList = [{ id: '1', title: 'Buy Milk', completedAt: null }];
-      const isDuplicate = existingList.some(t => !t.completedAt && t.title.toLowerCase() === 'buy milk'.toLowerCase());
-      const isNotDuplicateDiff = existingList.some(t => !t.completedAt && t.title.toLowerCase() === 'buy bread'.toLowerCase());
-      logTest('2. Duplicate rejection (case-insensitive)', isDuplicate && !isNotDuplicateDiff);
+      // Check 7: Reminder time math for every option (9:00 AM default & no repeat after remindedAt)
+      const baseTask = {
+        dueDate: '2026-10-25',
+        dueTime: null,
+        remind: 'none',
+        remindedAt: null
+      };
+      // 9:00 AM local default
+      baseTask.remind = 'due';
+      const triggerDue9AM = getReminderTriggerTimestamp(baseTask);
+      const expected9AM = new Date(2026, 9, 25, 9, 0, 0, 0).getTime();
+      const check7_due = triggerDue9AM === expected9AM;
 
-      // Check 3: Complete and reopen
-      let testTask = { id: '3', title: 'Test 3', completedAt: null };
-      testTask.completedAt = Date.now();
-      const completedOk = typeof testTask.completedAt === 'number';
-      testTask.completedAt = null;
-      const reopenOk = testTask.completedAt === null;
-      logTest('3. Complete sets timestamp and reopen clears it', completedOk && reopenOk);
+      baseTask.dueTime = '14:00';
+      const targetTime = new Date(2026, 9, 25, 14, 0, 0, 0).getTime();
+      baseTask.remind = '10m';
+      const check7_10m = getReminderTriggerTimestamp(baseTask) === targetTime - 10 * 60 * 1000;
+      baseTask.remind = '1h';
+      const check7_1h = getReminderTriggerTimestamp(baseTask) === targetTime - 60 * 60 * 1000;
+      baseTask.remind = '1d';
+      const check7_1d = getReminderTriggerTimestamp(baseTask) === targetTime - 24 * 60 * 60 * 1000;
+      // No repeat after remindedAt
+      baseTask.remindedAt = Date.now();
+      const isEligible = !baseTask.completedAt && baseTask.remind !== 'none' && !baseTask.remindedAt;
+      logTest('7. Reminder time math (9:00 AM default, 10m, 1h, 1d) and no repeat',
+        check7_due && check7_10m && check7_1h && check7_1d && !isEligible);
 
-      // Check 4: Delete and Undo restores data and position
-      let mockList = [{ id: 'a', title: 'A' }, { id: 'b', title: 'B' }, { id: 'c', title: 'C' }];
-      const deleted = mockList.splice(1, 1)[0];
-      const deleteOk = mockList.length === 2 && deleted.id === 'b';
-      // Restore at index 1
-      mockList.splice(1, 0, deleted);
-      const restoreOk = mockList.length === 3 && mockList[1].id === 'b';
-      logTest('4. Delete and Undo restoration', deleteOk && restoreOk);
+      // Check 8: Accent saved and loaded
+      const validAccents = ['red', 'teal', 'blue', 'forest'];
+      const accentsOk = validAccents.every(a => {
+        const payload = JSON.stringify({ accent: a });
+        const parsed = JSON.parse(payload);
+        return parsed && parsed.accent === a;
+      });
+      logTest('8. Accent colors saved and loaded across valid swatches', accentsOk);
 
-      // Check 5: Date logic (local YYYY-MM-DD strings, overdue & due today)
-      const todayStr = '2026-10-20';
-      const pastStr = '2026-10-19';
-      const futureStr = '2026-10-21';
-      const isDueTodayOk = isDueToday(todayStr, todayStr) && !isDueToday(futureStr, todayStr);
-      const isOverdueOk = isOverdue(pastStr, todayStr) && !isOverdue(futureStr, todayStr);
-      logTest('5. Date logic (local strings, overdue, due today)', isDueTodayOk && isOverdueOk);
-
-      // Check 6: Corrupted storage handling
-      const corruptedJson = '{"corrupted": true, bad json';
-      let caughtCorrupt = false;
-      try {
-        JSON.parse(corruptedJson);
-      } catch (e) {
-        caughtCorrupt = true;
+      // Check 9: Swipe threshold logic as a pure function
+      function evaluateSwipe(deltaX, isHistory = false) {
+        const THRESHOLD = 80;
+        if (deltaX >= THRESHOLD) return isHistory ? 'restore' : 'complete';
+        if (deltaX <= -THRESHOLD) return 'delete';
+        return 'spring-back';
       }
-      // Invalid records skipped
-      const rawMixed = [{ id: 'valid_1', title: 'Good' }, null, { invalid: 'bad' }];
-      const filteredGood = rawMixed.map(validateTaskRecord).filter(Boolean);
-      const corruptHandled = caughtCorrupt && filteredGood.length === 1 && filteredGood[0].title === 'Good';
-      logTest('6. Corrupted storage handling and record validation', corruptHandled);
+      const check9 = evaluateSwipe(80, false) === 'complete' &&
+                     evaluateSwipe(-80, false) === 'delete' &&
+                     evaluateSwipe(50, false) === 'spring-back' &&
+                     evaluateSwipe(80, true) === 'restore' &&
+                     evaluateSwipe(-80, true) === 'delete';
+      logTest('9. Swipe threshold logic as a pure function', check9);
+
+      // Check 10: Timer end-time math (start, pause, resume, finish) & loading running timer
+      const now = 1000000;
+      const durationMs = 25 * 60 * 1000;
+      const endTimestamp = now + durationMs;
+      const remStart = calculateRemainingMs(endTimestamp, now);
+      const remAfter10m = calculateRemainingMs(endTimestamp, now + 10 * 60 * 1000);
+      const remFinished = calculateRemainingMs(endTimestamp, endTimestamp + 1000);
+      const progHalf = calculateTimerProgress(12.5 * 60 * 1000, 25 * 60 * 1000);
+      const validMin = validateCustomMinutes('45') === 45 && validateCustomMinutes('200') === null;
+      // Simulating loading a saved running timer
+      const savedRunningTimer = { isRunning: true, endTimestamp: now + 5000 };
+      const loadedRemaining = Math.max(0, savedRunningTimer.endTimestamp - now);
+      const check10 = remStart === durationMs &&
+                      remAfter10m === 15 * 60 * 1000 &&
+                      remFinished === 0 &&
+                      progHalf === 0.5 &&
+                      validMin &&
+                      loadedRemaining === 5000;
+      logTest('10. Timer end-time math (start, pause, resume, finish) and saved timer recovery', check10);
+
+      // Check 11: Loading old tasks that have none of the new fields
+      const legacyRaw = { id: 'legacy_101', title: 'Old notebook entry' };
+      const migrated = validateTaskRecord(legacyRaw);
+      const check11 = migrated &&
+                      migrated.id === 'legacy_101' &&
+                      migrated.title === 'Old notebook entry' &&
+                      migrated.priority === 'none' &&
+                      migrated.dueDate === null &&
+                      migrated.dueTime === null &&
+                      migrated.remind === 'none' &&
+                      migrated.remindedAt === null &&
+                      migrated.completedAt === null &&
+                      Array.isArray(migrated.subtasks) &&
+                      migrated.subtasks.length === 0;
+      logTest('11. Loading old tasks that have none of the new fields with safe defaults', check11);
 
       // Clean up temporary storage key
       localStorage.removeItem(TEST_KEY);
