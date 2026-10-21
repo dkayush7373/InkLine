@@ -2207,6 +2207,10 @@
   function closeModal(modalEl) {
     if (!modalEl) return;
     modalEl.classList.remove('is-open');
+    const timerMusicBtn = document.getElementById('timerMusicBtn');
+    if (timerMusicBtn && modalEl.id === 'musicDialogOverlay') {
+      timerMusicBtn.setAttribute('aria-expanded', 'false');
+    }
     if (lastActiveElement && typeof lastActiveElement.focus === 'function') {
       lastActiveElement.focus();
     }
@@ -2445,6 +2449,33 @@
     if (skipPermBtn) {
       skipPermBtn.addEventListener('click', () => {
         closeModal(permDialog);
+      });
+    }
+
+    // 6. Music & Ambient Sounds Dialog
+    const musicDialog = document.getElementById('musicDialogOverlay');
+    const timerMusicBtn = document.getElementById('timerMusicBtn');
+    const closeMusicBtn = document.getElementById('closeMusicPanelBtn');
+    const closeMusicBottomBtn = document.getElementById('closeMusicPanelBottomBtn');
+
+    if (timerMusicBtn) {
+      timerMusicBtn.addEventListener('click', () => {
+        timerMusicBtn.setAttribute('aria-expanded', 'true');
+        openModal(musicDialog);
+      });
+    }
+
+    if (closeMusicBtn) {
+      closeMusicBtn.addEventListener('click', () => {
+        if (timerMusicBtn) timerMusicBtn.setAttribute('aria-expanded', 'false');
+        closeModal(musicDialog);
+      });
+    }
+
+    if (closeMusicBottomBtn) {
+      closeMusicBottomBtn.addEventListener('click', () => {
+        if (timerMusicBtn) timerMusicBtn.setAttribute('aria-expanded', 'false');
+        closeModal(musicDialog);
       });
     }
 
@@ -3250,6 +3281,10 @@
     const mins = Math.ceil(timerState.remainingMs / 60000);
     announcePolite(`Focus timer started for ${mins} minutes ${modeName}`);
 
+    if (typeof resumeMusicOnTimerResume === 'function') {
+      resumeMusicOnTimerResume();
+    }
+
     renderFocusView();
     startTickLoop();
   }
@@ -3263,6 +3298,10 @@
     stopTickLoop();
     releaseWakeLock();
     saveRunningTimerState();
+
+    if (typeof pauseMusicOnTimerPause === 'function') {
+      pauseMusicOnTimerPause();
+    }
 
     document.title = 'Inkline';
     announcePolite('Focus timer paused');
@@ -3346,6 +3385,10 @@
     // Save session record
     const durationMinutes = Math.round(timerState.totalMs / 60000);
     saveSessionRecord(timerState.mode, durationMinutes, timerState.focusTaskId);
+
+    if (typeof stopMusicOnTimerFinish === 'function') {
+      stopMusicOnTimerFinish();
+    }
 
     saveRunningTimerState();
     renderFocusView();
@@ -3498,6 +3541,931 @@
   }
 
   // ==========================================================================
+  // Music & Ambient Sounds (Feature 8)
+  // ==========================================================================
+  const STORAGE_KEY_MUSIC_PREFS = 'inkline.music_prefs.v1';
+  const IDB_NAME = 'inkline_audio_db';
+  const IDB_VERSION = 1;
+  const IDB_STORE = 'custom_tracks';
+  const MAX_CUSTOM_FILES = 10;
+  const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
+  const MAX_TOTAL_SIZE_BYTES = 60 * 1024 * 1024; // 60 MB
+
+  const musicState = {
+    currentType: null, // 'ambient' | 'custom' | null
+    currentAmbientSound: null, // string | null
+    customTracks: [], // array of { id, name, size, type, blob, objectUrl }
+    customCurrentIndex: -1,
+    isPlaying: false,
+    wasPlayingBeforeTimerPause: false,
+    volume: 0.4,
+    stopMusicOnEnd: true,
+    isLooping: false,
+    masterMusicGain: null,
+    activeAmbientNode: null,
+    audioEl: null
+  };
+
+  const SOUND_NAMES = {
+    white: 'White noise',
+    pink: 'Pink noise',
+    brown: 'Brown noise',
+    rain: 'Rain',
+    ocean: 'Ocean waves',
+    wind: 'Wind',
+    fan: 'Fan hum',
+    drone: 'Soft drone',
+    crickets: 'Night crickets',
+    library: 'Library room tone'
+  };
+
+  function validateAudioFileConstraint(file, existingTracks = []) {
+    if (!file) return { valid: false, error: 'No file selected.' };
+    if (existingTracks.length >= MAX_CUSTOM_FILES) {
+      return { valid: false, error: 'Storage limit reached. You can store up to 10 tracks.' };
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return { valid: false, error: `"${file.name}" is larger than the 15 MB limit.` };
+    }
+    const currentTotal = existingTracks.reduce((sum, t) => sum + (t.size || 0), 0);
+    if (currentTotal + file.size > MAX_TOTAL_SIZE_BYTES) {
+      return { valid: false, error: 'Total storage limit of 60 MB exceeded.' };
+    }
+    return { valid: true };
+  }
+
+  function formatStorageUsage(tracks = []) {
+    const count = tracks.length;
+    const totalBytes = tracks.reduce((sum, t) => sum + (t.size || 0), 0);
+    const mb = (totalBytes / (1024 * 1024)).toFixed(1);
+    return `Used ${mb} MB of 60 MB (${count} of ${MAX_CUSTOM_FILES} tracks)`;
+  }
+
+  function getMasterMusicGain() {
+    const ctx = getAudioContext();
+    if (!ctx) return null;
+    if (!musicState.masterMusicGain) {
+      musicState.masterMusicGain = ctx.createGain();
+      musicState.masterMusicGain.gain.setValueAtTime(musicState.volume, ctx.currentTime);
+      musicState.masterMusicGain.connect(ctx.destination);
+    }
+    return musicState.masterMusicGain;
+  }
+
+  function getCustomAudioElement() {
+    if (!musicState.audioEl) {
+      musicState.audioEl = new Audio();
+      musicState.audioEl.volume = musicState.volume;
+      musicState.audioEl.addEventListener('ended', onCustomTrackEnded);
+      musicState.audioEl.addEventListener('play', () => {
+        musicState.isPlaying = true;
+        updateMusicUI();
+      });
+      musicState.audioEl.addEventListener('pause', () => {
+        if (musicState.currentType === 'custom') {
+          musicState.isPlaying = false;
+          updateMusicUI();
+        }
+      });
+      musicState.audioEl.addEventListener('error', () => {
+        showMusicError('Playback error on selected audio track.');
+      });
+    }
+    return musicState.audioEl;
+  }
+
+  function onCustomTrackEnded() {
+    if (musicState.isLooping) {
+      playCustomTrack(musicState.customCurrentIndex);
+    } else if (musicState.customCurrentIndex < musicState.customTracks.length - 1) {
+      nextCustomTrack();
+    } else {
+      musicState.isPlaying = false;
+      updateMusicUI();
+    }
+  }
+
+  // --- 10 Sound Generators ---
+  function createWhiteNoise(ctx) {
+    const bufferSize = ctx.sampleRate * 4;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * 0.14;
+    }
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    return { source, output: source, stop: () => { try { source.stop(); } catch (e) {} } };
+  }
+
+  function createPinkNoise(ctx) {
+    const bufferSize = ctx.sampleRate * 4;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + white * 0.0555179;
+      b1 = 0.99332 * b1 + white * 0.0750759;
+      b2 = 0.96900 * b2 + white * 0.1538520;
+      b3 = 0.86650 * b3 + white * 0.3104856;
+      b4 = 0.55000 * b4 + white * 0.5329522;
+      b5 = -0.7616 * b5 - white * 0.0168980;
+      data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.05;
+      b6 = white * 0.115926;
+    }
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    return { source, output: source, stop: () => { try { source.stop(); } catch (e) {} } };
+  }
+
+  function createBrownNoise(ctx) {
+    const bufferSize = ctx.sampleRate * 4;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      last = (last + (0.02 * white)) / 1.02;
+      data[i] = last * 0.6;
+    }
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    return { source, output: source, stop: () => { try { source.stop(); } catch (e) {} } };
+  }
+
+  function createRain(ctx) {
+    const pink = createPinkNoise(ctx);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1100, ctx.currentTime);
+    pink.output.connect(filter);
+
+    const white = createWhiteNoise(ctx);
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.setValueAtTime(3500, ctx.currentTime);
+    const dropGain = ctx.createGain();
+    dropGain.gain.setValueAtTime(0.06, ctx.currentTime);
+    white.output.connect(hp);
+    hp.connect(dropGain);
+
+    const merger = ctx.createGain();
+    filter.connect(merger);
+    dropGain.connect(merger);
+
+    return {
+      source: pink.source,
+      output: merger,
+      stop: () => {
+        pink.stop();
+        white.stop();
+      }
+    };
+  }
+
+  function createOceanWaves(ctx) {
+    const brown = createBrownNoise(ctx);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(320, ctx.currentTime);
+
+    const lfo = ctx.createOscillator();
+    lfo.frequency.setValueAtTime(0.1, ctx.currentTime);
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.setValueAtTime(220, ctx.currentTime);
+    lfo.connect(lfoGain);
+    lfoGain.connect(filter.frequency);
+
+    brown.output.connect(filter);
+    lfo.start();
+
+    return {
+      source: brown.source,
+      output: filter,
+      stop: () => {
+        brown.stop();
+        try { lfo.stop(); } catch (e) {}
+      }
+    };
+  }
+
+  function createWind(ctx) {
+    const pink = createPinkNoise(ctx);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(450, ctx.currentTime);
+    filter.Q.setValueAtTime(2.2, ctx.currentTime);
+
+    const lfo = ctx.createOscillator();
+    lfo.frequency.setValueAtTime(0.14, ctx.currentTime);
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.setValueAtTime(240, ctx.currentTime);
+    lfo.connect(lfoGain);
+    lfoGain.connect(filter.frequency);
+
+    pink.output.connect(filter);
+    lfo.start();
+
+    return {
+      source: pink.source,
+      output: filter,
+      stop: () => {
+        pink.stop();
+        try { lfo.stop(); } catch (e) {}
+      }
+    };
+  }
+
+  function createFanHum(ctx) {
+    const brown = createBrownNoise(ctx);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(180, ctx.currentTime);
+    brown.output.connect(filter);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(120, ctx.currentTime);
+    const oscGain = ctx.createGain();
+    oscGain.gain.setValueAtTime(0.04, ctx.currentTime);
+    osc.connect(oscGain);
+    osc.start();
+
+    const mixer = ctx.createGain();
+    filter.connect(mixer);
+    oscGain.connect(mixer);
+
+    return {
+      source: brown.source,
+      output: mixer,
+      stop: () => {
+        brown.stop();
+        try { osc.stop(); } catch (e) {}
+      }
+    };
+  }
+
+  function createSoftDrone(ctx) {
+    const freqs = [110, 164.81, 220];
+    const mixer = ctx.createGain();
+    const oscs = [];
+
+    freqs.forEach(f => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, ctx.currentTime);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.035, ctx.currentTime);
+      osc.connect(g);
+      g.connect(mixer);
+      osc.start();
+      oscs.push(osc);
+    });
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(380, ctx.currentTime);
+    mixer.connect(filter);
+
+    return {
+      source: null,
+      output: filter,
+      stop: () => {
+        oscs.forEach(o => { try { o.stop(); } catch (e) {} });
+      }
+    };
+  }
+
+  function createNightCrickets(ctx) {
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(4500, ctx.currentTime);
+
+    const pulseLfo = ctx.createOscillator();
+    pulseLfo.type = 'square';
+    pulseLfo.frequency.setValueAtTime(14, ctx.currentTime);
+    const pulseGain = ctx.createGain();
+    pulseGain.gain.setValueAtTime(0.5, ctx.currentTime);
+    pulseLfo.connect(pulseGain.gain);
+
+    const mainGain = ctx.createGain();
+    mainGain.gain.setValueAtTime(0.025, ctx.currentTime);
+
+    osc.connect(pulseGain);
+    pulseGain.connect(mainGain);
+
+    osc.start();
+    pulseLfo.start();
+
+    return {
+      source: osc,
+      output: mainGain,
+      stop: () => {
+        try { osc.stop(); } catch (e) {}
+        try { pulseLfo.stop(); } catch (e) {}
+      }
+    };
+  }
+
+  function createLibraryRoomTone(ctx) {
+    const brown = createBrownNoise(ctx);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(220, ctx.currentTime);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+
+    brown.output.connect(filter);
+    filter.connect(gain);
+
+    return {
+      source: brown.source,
+      output: gain,
+      stop: () => {
+        brown.stop();
+      }
+    };
+  }
+
+  function buildAmbientSoundNode(ctx, soundName) {
+    switch (soundName) {
+      case 'white': return createWhiteNoise(ctx);
+      case 'pink': return createPinkNoise(ctx);
+      case 'brown': return createBrownNoise(ctx);
+      case 'rain': return createRain(ctx);
+      case 'ocean': return createOceanWaves(ctx);
+      case 'wind': return createWind(ctx);
+      case 'fan': return createFanHum(ctx);
+      case 'drone': return createSoftDrone(ctx);
+      case 'crickets': return createNightCrickets(ctx);
+      case 'library': return createLibraryRoomTone(ctx);
+      default: return null;
+    }
+  }
+
+  function playAmbientSound(soundName) {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    // If clicking currently active sound, toggle off
+    if (musicState.currentType === 'ambient' && musicState.currentAmbientSound === soundName && musicState.isPlaying) {
+      stopAmbientSound();
+      return;
+    }
+
+    // Stop custom audio if playing
+    if (musicState.currentType === 'custom' && musicState.audioEl) {
+      musicState.audioEl.pause();
+    }
+
+    // Fade out previous ambient if playing
+    if (musicState.activeAmbientNode) {
+      stopAmbientSound(true);
+    }
+
+    const node = buildAmbientSoundNode(ctx, soundName);
+    if (!node) return;
+
+    const masterGain = getMasterMusicGain();
+    node.output.connect(masterGain);
+    if (node.source && node.source.start) {
+      try { node.source.start(); } catch (e) {}
+    }
+
+    // 300ms smooth fade-in
+    const now = ctx.currentTime;
+    masterGain.gain.setValueAtTime(0.0001, now);
+    masterGain.gain.linearRampToValueAtTime(musicState.volume, now + 0.3);
+
+    musicState.activeAmbientNode = node;
+    musicState.currentType = 'ambient';
+    musicState.currentAmbientSound = soundName;
+    musicState.isPlaying = true;
+    musicState.wasPlayingBeforeTimerPause = false;
+
+    updateMusicUI();
+  }
+
+  function stopAmbientSound(immediate = false) {
+    if (!musicState.activeAmbientNode) {
+      musicState.isPlaying = false;
+      musicState.currentAmbientSound = null;
+      updateMusicUI();
+      return;
+    }
+
+    const nodeToStop = musicState.activeAmbientNode;
+    musicState.activeAmbientNode = null;
+    musicState.currentAmbientSound = null;
+    musicState.isPlaying = false;
+
+    const ctx = getAudioContext();
+    if (ctx && musicState.masterMusicGain && !immediate) {
+      // 300ms smooth fade-out
+      const now = ctx.currentTime;
+      musicState.masterMusicGain.gain.setValueAtTime(musicState.masterMusicGain.gain.value, now);
+      musicState.masterMusicGain.gain.linearRampToValueAtTime(0.0001, now + 0.3);
+      setTimeout(() => {
+        try { nodeToStop.stop(); } catch (e) {}
+        try { nodeToStop.output.disconnect(); } catch (e) {}
+      }, 320);
+    } else {
+      try { nodeToStop.stop(); } catch (e) {}
+      try { nodeToStop.output.disconnect(); } catch (e) {}
+    }
+
+    updateMusicUI();
+  }
+
+  function shuffleAmbientSound() {
+    const keys = Object.keys(SOUND_NAMES);
+    const available = keys.filter(k => k !== musicState.currentAmbientSound);
+    const chosen = available[Math.floor(Math.random() * available.length)];
+    playAmbientSound(chosen);
+  }
+
+  // --- Custom Audio Playback ---
+  function playCustomTrack(index) {
+    if (index < 0 || index >= musicState.customTracks.length) return;
+
+    // Stop ambient sound
+    if (musicState.activeAmbientNode) {
+      stopAmbientSound(true);
+    }
+
+    const track = musicState.customTracks[index];
+    musicState.customCurrentIndex = index;
+    musicState.currentType = 'custom';
+    musicState.wasPlayingBeforeTimerPause = false;
+
+    const audio = getCustomAudioElement();
+    if (audio.src !== track.objectUrl) {
+      audio.src = track.objectUrl;
+    }
+
+    audio.volume = musicState.volume;
+    audio.play().then(() => {
+      musicState.isPlaying = true;
+      updateMusicUI();
+    }).catch(() => {
+      showMusicError('Playback failed. Please choose another track.');
+    });
+  }
+
+  function pauseCustomTrack() {
+    if (musicState.audioEl) {
+      musicState.audioEl.pause();
+    }
+    musicState.isPlaying = false;
+    updateMusicUI();
+  }
+
+  function toggleCustomPlayPause() {
+    if (musicState.currentType === 'custom' && musicState.isPlaying) {
+      pauseCustomTrack();
+    } else if (musicState.customTracks.length > 0) {
+      const idx = musicState.customCurrentIndex >= 0 ? musicState.customCurrentIndex : 0;
+      playCustomTrack(idx);
+    }
+  }
+
+  function nextCustomTrack() {
+    if (musicState.customTracks.length === 0) return;
+    const nextIdx = (musicState.customCurrentIndex + 1) % musicState.customTracks.length;
+    playCustomTrack(nextIdx);
+  }
+
+  function prevCustomTrack() {
+    if (musicState.customTracks.length === 0) return;
+    const prevIdx = (musicState.customCurrentIndex - 1 + musicState.customTracks.length) % musicState.customTracks.length;
+    playCustomTrack(prevIdx);
+  }
+
+  function toggleCustomLoop() {
+    musicState.isLooping = !musicState.isLooping;
+    const loopBtn = document.getElementById('loopCustomBtn');
+    if (loopBtn) {
+      loopBtn.classList.toggle('is-active', musicState.isLooping);
+      loopBtn.setAttribute('aria-pressed', musicState.isLooping ? 'true' : 'false');
+    }
+  }
+
+  function shuffleCustomTracks() {
+    if (musicState.customTracks.length <= 1) return;
+    let nextIdx = Math.floor(Math.random() * musicState.customTracks.length);
+    if (nextIdx === musicState.customCurrentIndex) {
+      nextIdx = (nextIdx + 1) % musicState.customTracks.length;
+    }
+    playCustomTrack(nextIdx);
+  }
+
+  // --- IndexedDB Management ---
+  function openAudioDB() {
+    return new Promise((resolve, reject) => {
+      if (!('indexedDB' in window)) {
+        return reject(new Error('IndexedDB not supported'));
+      }
+      const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+      req.onupgradeneeded = e => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(IDB_STORE)) {
+          db.createObjectStore(IDB_STORE, { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function loadCustomTracksFromIDB() {
+    try {
+      const db = await openAudioDB();
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const store = tx.objectStore(IDB_STORE);
+      const req = store.getAll();
+
+      req.onsuccess = () => {
+        const records = req.result || [];
+        musicState.customTracks = records.map(r => ({
+          id: r.id,
+          name: r.name,
+          size: r.size,
+          type: r.type,
+          blob: r.blob,
+          objectUrl: URL.createObjectURL(r.blob)
+        }));
+        renderCustomTracksUI();
+      };
+    } catch (e) {
+      // IndexedDB fallback
+    }
+  }
+
+  async function saveTrackToIDB(trackRecord) {
+    try {
+      const db = await openAudioDB();
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(trackRecord);
+    } catch (e) {}
+  }
+
+  async function deleteTrackFromIDB(trackId) {
+    try {
+      const db = await openAudioDB();
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(trackId);
+    } catch (e) {}
+  }
+
+  function removeCustomTrack(trackId) {
+    const idx = musicState.customTracks.findIndex(t => t.id === trackId);
+    if (idx === -1) return;
+
+    const track = musicState.customTracks[idx];
+    if (musicState.currentType === 'custom' && musicState.customCurrentIndex === idx) {
+      if (musicState.audioEl) musicState.audioEl.pause();
+      musicState.isPlaying = false;
+      musicState.currentType = null;
+      musicState.customCurrentIndex = -1;
+    }
+
+    try { URL.revokeObjectURL(track.objectUrl); } catch (e) {}
+    deleteTrackFromIDB(trackId);
+    musicState.customTracks.splice(idx, 1);
+
+    if (musicState.customCurrentIndex > idx) {
+      musicState.customCurrentIndex--;
+    }
+
+    renderCustomTracksUI();
+    updateMusicUI();
+  }
+
+  function handleCustomFilesSelected(fileList) {
+    clearMusicError();
+    if (!fileList || fileList.length === 0) return;
+
+    const files = Array.from(fileList);
+    if (musicState.customTracks.length + files.length > MAX_CUSTOM_FILES) {
+      showMusicError(`Storage limit reached. You can store up to ${MAX_CUSTOM_FILES} tracks.`);
+      return;
+    }
+
+    let addedCount = 0;
+    files.forEach(file => {
+      const validation = validateAudioFileConstraint(file, musicState.customTracks);
+      if (!validation.valid) {
+        showMusicError(validation.error);
+        return;
+      }
+
+      const id = 'track_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+      const record = {
+        id,
+        name: file.name.slice(0, 60),
+        size: file.size,
+        type: file.type || 'audio/mpeg',
+        blob: file,
+        addedAt: Date.now()
+      };
+
+      const inMemTrack = {
+        id: record.id,
+        name: record.name,
+        size: record.size,
+        type: record.type,
+        blob: record.blob,
+        objectUrl: URL.createObjectURL(file)
+      };
+
+      musicState.customTracks.push(inMemTrack);
+      saveTrackToIDB(record);
+      addedCount++;
+    });
+
+    if (addedCount > 0) {
+      renderCustomTracksUI();
+    }
+  }
+
+  function showMusicError(msg) {
+    const notice = document.getElementById('musicErrorNotice');
+    if (notice) {
+      notice.textContent = msg;
+      notice.style.display = 'block';
+    }
+  }
+
+  function clearMusicError() {
+    const notice = document.getElementById('musicErrorNotice');
+    if (notice) {
+      notice.textContent = '';
+      notice.style.display = 'none';
+    }
+  }
+
+  function renderCustomTracksUI() {
+    const info = document.getElementById('customStorageInfo');
+    if (info) {
+      info.textContent = formatStorageUsage(musicState.customTracks);
+    }
+
+    const controls = document.getElementById('customPlaylistControls');
+    if (controls) {
+      controls.style.display = musicState.customTracks.length > 0 ? 'flex' : 'none';
+    }
+
+    const listUl = document.getElementById('customTracksList');
+    if (!listUl) return;
+
+    listUl.innerHTML = '';
+    musicState.customTracks.forEach((track, idx) => {
+      const li = document.createElement('li');
+      li.className = 'custom-track-item' + (musicState.currentType === 'custom' && musicState.customCurrentIndex === idx ? ' is-playing' : '');
+
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'track-info';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'track-name';
+      nameSpan.textContent = track.name;
+      infoDiv.appendChild(nameSpan);
+
+      const sizeSpan = document.createElement('span');
+      sizeSpan.className = 'track-size';
+      sizeSpan.textContent = `(${(track.size / (1024 * 1024)).toFixed(1)} MB)`;
+      infoDiv.appendChild(sizeSpan);
+
+      li.appendChild(infoDiv);
+
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'track-actions';
+
+      const playBtn = document.createElement('button');
+      playBtn.type = 'button';
+      playBtn.className = 'btn-text';
+      playBtn.textContent = (musicState.currentType === 'custom' && musicState.customCurrentIndex === idx && musicState.isPlaying) ? 'Pause' : 'Play';
+      playBtn.setAttribute('aria-label', `Play ${track.name}`);
+      playBtn.addEventListener('click', () => {
+        if (musicState.currentType === 'custom' && musicState.customCurrentIndex === idx && musicState.isPlaying) {
+          pauseCustomTrack();
+        } else {
+          playCustomTrack(idx);
+        }
+      });
+      actionsDiv.appendChild(playBtn);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'btn-text delete-text';
+      removeBtn.textContent = 'Remove';
+      removeBtn.setAttribute('aria-label', `Remove ${track.name}`);
+      removeBtn.addEventListener('click', () => {
+        removeCustomTrack(track.id);
+      });
+      actionsDiv.appendChild(removeBtn);
+
+      li.appendChild(actionsDiv);
+      listUl.appendChild(li);
+    });
+  }
+
+  function updateMusicUI() {
+    // 1. Ambient buttons active class
+    const btns = document.querySelectorAll('.ambient-sound-btn');
+    btns.forEach(b => {
+      const s = b.getAttribute('data-sound');
+      const isActive = musicState.currentType === 'ambient' && musicState.currentAmbientSound === s && musicState.isPlaying;
+      b.classList.toggle('is-playing', isActive);
+      b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+
+    // 2. Custom play/pause button text
+    const playPauseBtn = document.getElementById('playPauseCustomBtn');
+    if (playPauseBtn) {
+      const isCustomPlaying = musicState.currentType === 'custom' && musicState.isPlaying;
+      playPauseBtn.textContent = isCustomPlaying ? 'Pause' : 'Play';
+      playPauseBtn.setAttribute('aria-label', isCustomPlaying ? 'Pause custom track' : 'Play custom track');
+    }
+
+    // 3. Now Playing Lines (Focus card & panel)
+    let title = '';
+    if (musicState.currentType === 'ambient' && musicState.currentAmbientSound) {
+      title = SOUND_NAMES[musicState.currentAmbientSound] || musicState.currentAmbientSound;
+    } else if (musicState.currentType === 'custom' && musicState.customCurrentIndex >= 0) {
+      const track = musicState.customTracks[musicState.customCurrentIndex];
+      title = track ? track.name : '';
+    }
+
+    const cardLine = document.getElementById('nowPlayingCardLine');
+    const cardText = document.getElementById('nowPlayingCardText');
+    if (cardLine && cardText) {
+      cardLine.classList.toggle('is-playing', musicState.isPlaying);
+      cardText.textContent = musicState.isPlaying ? `Now playing: ${title}` : (title ? `Paused: ${title}` : 'Nothing playing');
+    }
+
+    renderCustomTracksUI();
+  }
+
+  // Timer Integration Handlers
+  function pauseMusicOnTimerPause() {
+    if (musicState.isPlaying) {
+      musicState.wasPlayingBeforeTimerPause = true;
+      if (musicState.currentType === 'ambient') {
+        stopAmbientSound();
+      } else if (musicState.currentType === 'custom') {
+        pauseCustomTrack();
+      }
+    }
+  }
+
+  function resumeMusicOnTimerResume() {
+    if (musicState.wasPlayingBeforeTimerPause) {
+      musicState.wasPlayingBeforeTimerPause = false;
+      if (musicState.currentType === 'ambient' && musicState.currentAmbientSound) {
+        playAmbientSound(musicState.currentAmbientSound);
+      } else if (musicState.currentType === 'custom' && musicState.customCurrentIndex >= 0) {
+        playCustomTrack(musicState.customCurrentIndex);
+      }
+    }
+  }
+
+  function stopMusicOnTimerFinish() {
+    if (musicState.stopMusicOnEnd) {
+      musicState.wasPlayingBeforeTimerPause = false;
+      if (musicState.activeAmbientNode) {
+        stopAmbientSound();
+      }
+      if (musicState.audioEl) {
+        musicState.audioEl.pause();
+      }
+      musicState.isPlaying = false;
+      updateMusicUI();
+    }
+  }
+
+  function loadMusicPrefs() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_MUSIC_PREFS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          if (typeof parsed.volume === 'number') {
+            musicState.volume = Math.max(0, Math.min(1, parsed.volume));
+          }
+          if (typeof parsed.stopMusicOnEnd === 'boolean') {
+            musicState.stopMusicOnEnd = parsed.stopMusicOnEnd;
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  function saveMusicPrefs() {
+    try {
+      const payload = {
+        volume: musicState.volume,
+        stopMusicOnEnd: musicState.stopMusicOnEnd
+      };
+      localStorage.setItem(STORAGE_KEY_MUSIC_PREFS, JSON.stringify(payload));
+    } catch (e) {}
+  }
+
+  function setupMusicAndSounds() {
+    loadMusicPrefs();
+    loadCustomTracksFromIDB();
+
+    // Volume Slider
+    const volumeSlider = document.getElementById('musicVolumeRange');
+    const volumeDisplay = document.getElementById('musicVolumeDisplay');
+    if (volumeSlider) {
+      volumeSlider.value = String(Math.round(musicState.volume * 100));
+      if (volumeDisplay) volumeDisplay.textContent = `${volumeSlider.value}%`;
+
+      volumeSlider.addEventListener('input', e => {
+        const pct = parseInt(e.target.value, 10);
+        musicState.volume = pct / 100;
+        if (volumeDisplay) volumeDisplay.textContent = `${pct}%`;
+
+        // Update Web Audio master gain if playing
+        if (musicState.masterMusicGain && getAudioContext()) {
+          musicState.masterMusicGain.gain.setValueAtTime(musicState.volume, getAudioContext().currentTime);
+        }
+        // Update custom audio element if playing
+        if (musicState.audioEl) {
+          musicState.audioEl.volume = musicState.volume;
+        }
+        saveMusicPrefs();
+      });
+    }
+
+    // Stop music when time ends checkbox
+    const stopCheckbox = document.getElementById('stopMusicOnEndCheckbox');
+    if (stopCheckbox) {
+      stopCheckbox.checked = musicState.stopMusicOnEnd;
+      stopCheckbox.addEventListener('change', () => {
+        musicState.stopMusicOnEnd = stopCheckbox.checked;
+        saveMusicPrefs();
+      });
+    }
+
+    // 10 Ambient sound buttons
+    const ambientBtns = document.querySelectorAll('.ambient-sound-btn');
+    ambientBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const sound = btn.getAttribute('data-sound');
+        playAmbientSound(sound);
+      });
+    });
+
+    // Shuffle ambient button
+    const shuffleBtn = document.getElementById('shuffleAmbientBtn');
+    if (shuffleBtn) {
+      shuffleBtn.addEventListener('click', shuffleAmbientSound);
+    }
+
+    // Custom audio file picker
+    const fileInput = document.getElementById('customAudioInput');
+    if (fileInput) {
+      fileInput.addEventListener('change', () => {
+        handleCustomFilesSelected(fileInput.files);
+        fileInput.value = '';
+      });
+    }
+
+    // Custom playlist controls
+    const playPauseBtn = document.getElementById('playPauseCustomBtn');
+    if (playPauseBtn) {
+      playPauseBtn.addEventListener('click', toggleCustomPlayPause);
+    }
+
+    const prevBtn = document.getElementById('prevTrackBtn');
+    if (prevBtn) {
+      prevBtn.addEventListener('click', prevCustomTrack);
+    }
+
+    const nextBtn = document.getElementById('nextTrackBtn');
+    if (nextBtn) {
+      nextBtn.addEventListener('click', nextCustomTrack);
+    }
+
+    const loopBtn = document.getElementById('loopCustomBtn');
+    if (loopBtn) {
+      loopBtn.addEventListener('click', toggleCustomLoop);
+    }
+
+    const shuffleCustomBtn = document.getElementById('shuffleCustomBtn');
+    if (shuffleCustomBtn) {
+      shuffleCustomBtn.addEventListener('click', shuffleCustomTracks);
+    }
+  }
+
+  // ==========================================================================
   // Self-Test Suite: window.inklineSelfTest()
   // Must run on temporary storage key and not touch real user data
   // ==========================================================================
@@ -3625,6 +4593,7 @@
     scheduleMidnightRefresh();
     setupVisibilityChange();
     setupFocusTimer();
+    setupMusicAndSounds();
 
     // 5. Load data & initial render
     state.tasks = loadFromStorage();

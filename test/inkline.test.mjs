@@ -540,4 +540,65 @@ test('focus timer: duration validation, formatting, and end-time math', () => {
   assert.equal(calculateRemainingMs(endTimestamp, endTimestamp + 5000), 0); // Stops at 0 after time ends
 });
 
+test('music and ambient sounds: audio file constraints and storage formatting', () => {
+  const MAX_CUSTOM_FILES = 10;
+  const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
+  const MAX_TOTAL_SIZE_BYTES = 60 * 1024 * 1024; // 60 MB
+
+  function validateAudioFileConstraint(file, existingTracks = []) {
+    if (!file) return { valid: false, error: 'No file selected.' };
+    if (existingTracks.length >= MAX_CUSTOM_FILES) {
+      return { valid: false, error: 'Storage limit reached. You can store up to 10 tracks.' };
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return { valid: false, error: `"${file.name}" is larger than the 15 MB limit.` };
+    }
+    const currentTotal = existingTracks.reduce((sum, t) => sum + (t.size || 0), 0);
+    if (currentTotal + file.size > MAX_TOTAL_SIZE_BYTES) {
+      return { valid: false, error: 'Total storage limit of 60 MB exceeded.' };
+    }
+    return { valid: true };
+  }
+
+  function formatStorageUsage(tracks = []) {
+    const count = tracks.length;
+    const totalBytes = tracks.reduce((sum, t) => sum + (t.size || 0), 0);
+    const mb = (totalBytes / (1024 * 1024)).toFixed(1);
+    return `Used ${mb} MB of 60 MB (${count} of ${MAX_CUSTOM_FILES} tracks)`;
+  }
+
+  // 1. Valid file acceptance
+  const validFile = { name: 'study.mp3', size: 5 * 1024 * 1024 };
+  assert.equal(validateAudioFileConstraint(validFile, []).valid, true);
+
+  // 2. Reject file exceeding 15MB limit
+  const bigFile = { name: 'huge_album.wav', size: 16 * 1024 * 1024 };
+  const bigRes = validateAudioFileConstraint(bigFile, []);
+  assert.equal(bigRes.valid, false);
+  assert.match(bigRes.error, /larger than the 15 MB limit/);
+
+  // 3. Reject when max 10 files limit reached
+  const tenTracks = Array.from({ length: 10 }, (_, i) => ({ id: `t_${i}`, size: 1024 * 1024 }));
+  const countRes = validateAudioFileConstraint(validFile, tenTracks);
+  assert.equal(countRes.valid, false);
+  assert.match(countRes.error, /up to 10 tracks/);
+
+  // 4. Reject when total storage limit 60MB exceeded
+  const fourTracksAt58MB = [
+    { id: '1', size: 15 * 1024 * 1024 },
+    { id: '2', size: 15 * 1024 * 1024 },
+    { id: '3', size: 15 * 1024 * 1024 },
+    { id: '4', size: 13 * 1024 * 1024 } // total 58MB
+  ];
+  const fileExceeding60MB = { name: 'track5.mp3', size: 4 * 1024 * 1024 }; // 58 + 4 = 62MB > 60MB
+  const totalRes = validateAudioFileConstraint(fileExceeding60MB, fourTracksAt58MB);
+  assert.equal(totalRes.valid, false);
+  assert.match(totalRes.error, /60 MB exceeded/);
+
+  // 5. Storage display string formatting
+  assert.equal(formatStorageUsage([]), 'Used 0.0 MB of 60 MB (0 of 10 tracks)');
+  assert.equal(formatStorageUsage([{ size: 10 * 1024 * 1024 }]), 'Used 10.0 MB of 60 MB (1 of 10 tracks)');
+});
+
+
 
